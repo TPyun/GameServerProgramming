@@ -37,27 +37,19 @@ void Game::handleEvents()
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_w) {
 			//cout << "W" << endl;
-			if (player->position.y - 100 > 0 && player->position.y< HEIGHT) {
-				player->move(TI{ 0, -100 });
-			}
+			player->move(TI{ 0, -100 });
 		}
 		if (event.key.keysym.sym == SDLK_s) {
 			//cout << "S" << endl;
-			if (player->position.y > 0 && player->position.y +100 < HEIGHT) {
-				player->move(TI{ 0, 100 });
-			}
+			player->move(TI{ 0, 100 });
 		}
 		if (event.key.keysym.sym == SDLK_a) {
 			//cout << "A" << endl;
-			if (player->position.x - 100 > 0 && player->position.x < WIDTH) {
-				player->move(TI{ -100, 0 });
-			}
+			player->move(TI{ -100, 0 });
 		}
 		if (event.key.keysym.sym == SDLK_d) {
 			//cout << "D" << endl;
-			if (player->position.x > 0 && player->position.x + 100 < WIDTH) {
-				player->move(TI{ 100, 0 });
-			}
+			player->move(TI{ 100, 0 });
 		}
 	}
 }
@@ -89,7 +81,7 @@ void Game::draw_game()
 			rect.w = 100;
 			rect.h = 100;
 			if ((i + j) % 2 == 0) {
-				SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+				SDL_SetRenderDrawColor(renderer, 200, 200, 200, SDL_ALPHA_OPAQUE);
 			}
 			else {
 				SDL_SetRenderDrawColor(renderer, 100, 50, 0, SDL_ALPHA_OPAQUE);
