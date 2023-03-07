@@ -35,19 +35,19 @@ void Game::handleEvents()
 		isRunning = false;
 	}
 	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_w) {
+		if (event.key.keysym.sym == SDLK_UP) {
 			//cout << "W" << endl;
 			player->move(TI{ 0, -100 });
 		}
-		if (event.key.keysym.sym == SDLK_s) {
+		if (event.key.keysym.sym == SDLK_DOWN) {
 			//cout << "S" << endl;
 			player->move(TI{ 0, 100 });
 		}
-		if (event.key.keysym.sym == SDLK_a) {
+		if (event.key.keysym.sym == SDLK_LEFT) {
 			//cout << "A" << endl;
 			player->move(TI{ -100, 0 });
 		}
-		if (event.key.keysym.sym == SDLK_d) {
+		if (event.key.keysym.sym == SDLK_RIGHT) {
 			//cout << "D" << endl;
 			player->move(TI{ 100, 0 });
 		}
@@ -73,9 +73,9 @@ void Game::clear()
 void Game::draw_game()
 {
 	//Ã¼½º ÆÇ
+	SDL_Rect rect;
 	for (int i = 0; i < 8; i++) {
 		for (int j = 0; j < 8; j++) {
-			SDL_Rect rect;
 			rect.x = i * 100;
 			rect.y = j * 100;
 			rect.w = 100;
