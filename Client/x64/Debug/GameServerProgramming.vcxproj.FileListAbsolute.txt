@@ -1,2 +1,0 @@
-G:\Code\GameServerProgramming\x64\Debug\GameServerProgramming.exe
-G:\Code\GameServerProgramming\Client\x64\Debug\GameServerProgramming.exe
