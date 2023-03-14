@@ -1,0 +1,8 @@
+﻿  Game.cpp
+  Main.cpp
+  Network.cpp
+  Generating code
+  Previous IPDB and IOBJ mismatch, fall back to full compilation.
+  All 24 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  GameServerProgramming.vcxproj -> G:\Code\GameServerProgramming\Client\x64\Release\GameServerProgramming.exe

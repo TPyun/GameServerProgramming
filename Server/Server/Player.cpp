@@ -1,8 +1,7 @@
 #include "Player.h"
 
-Player::Player(TI position)
+Player::Player(TI pos) : position(pos)
 {
-	this->position = position;
 }
 
 Player::~Player()
