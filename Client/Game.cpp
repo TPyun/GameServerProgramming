@@ -1,24 +1,32 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "Game.h"
 
+using namespace std;
 Game::Game()
 {
 	//Initialize SDL
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
-		//cout << "Could not initialize SDL!" << SDL_GetError() << endl;
+		cout << "Could not initialize SDL!" << SDL_GetError() << endl;
 	}
 	if (TTF_Init() < 0) {
-		//cout << "Could not initialize SDL!" << SDL_GetError() << endl;
+		cout << "Could not initialize SDL!" << SDL_GetError() << endl;
 	}
 	//Create Window
-	window = SDL_CreateWindow("", user_moniter.x / 2 - window_size.x / 2, user_moniter.y / 2 - window_size.y / 2, window_size.x, window_size.y, SDL_WINDOW_OPENGL);
+	window = SDL_CreateWindow("Client", user_moniter.x / 2 - window_size.x / 2, user_moniter.y / 2 - window_size.y / 2, window_size.x, window_size.y, SDL_WINDOW_OPENGL);
 	if (window == NULL) {
-		//cout << "Could not create window!" << SDL_GetError() << endl;;
+		cout << "Could not create window!" << SDL_GetError() << endl;;
 	}
 	// Create renderer
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_TARGETTEXTURE);
 	if (renderer == NULL) {
-		//cout << "Could not create renderer!" << SDL_GetError() << endl;
+		cout << "Could not create renderer!" << SDL_GetError() << endl;
 	}
+	// Load font
+	font = TTF_OpenFont("arial.ttf", 17);
+	if (!font) {
+		printf("Could not open font! (%s)\n", TTF_GetError());
+	}
+	cout << "Game initialized!" << endl;
 }
 
 Game::~Game()
@@ -28,7 +36,7 @@ Game::~Game()
 	SDL_Quit();
 }
 
-void Game::handleEvents()
+void Game::handle_events()
 {
 	SDL_PollEvent(&event);
 	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE) {
@@ -36,19 +44,19 @@ void Game::handleEvents()
 	}
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_UP) {
-			std::cout << "UP" << std::endl;
+			//std::cout << "UP" << std::endl;
 			key_input.up = true;
 		}
 		if (event.key.keysym.sym == SDLK_DOWN) {
-			std::cout << "DOWN" << std::endl;
+			//std::cout << "DOWN" << std::endl;
 			key_input.down = true;
 		}
 		if (event.key.keysym.sym == SDLK_LEFT) {
-			std::cout << "LEFT" << std::endl;
+			//std::cout << "LEFT" << std::endl;
 			key_input.left = true;
 		}
 		if (event.key.keysym.sym == SDLK_RIGHT) {
-			std::cout << "RIGHT" << std::endl;
+			//std::cout << "RIGHT" << std::endl;
 			key_input.right = true;
 		}
 	}
@@ -56,7 +64,13 @@ void Game::handleEvents()
 
 void Game::update()
 {
-	draw_game();
+	if (scene == 0) {
+		draw_main();
+	}
+	if (scene == 1) {
+		handle_events();
+		draw_game();
+	}
 }
 
 void Game::render()
@@ -68,6 +82,76 @@ void Game::clear()
 {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(renderer);
+}
+
+SDL_Rect Game::get_rect(TI pos, TI size)
+{
+	SDL_Rect rect{ pos.x - size.x / 2, pos.y - size.y / 2, size.x, size.y };
+	return rect;
+}
+
+void Game::draw_main()
+{
+	SDL_PollEvent(&event);
+	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE) {
+		isRunning = false;
+	}
+	
+	//Press button to add text
+	if (event.type == SDL_TEXTINPUT && strlen(text_input.c_str()) < 20) {
+		text_input += event.text.text;
+		if (input_height == 130) {
+			strcpy(IPAdress, text_input.c_str());
+		}
+		else {
+			strcpy(Port, text_input.c_str());
+		}
+	}
+	//Press backspace to erase
+	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_BACKSPACE && text_input.size()) {
+		text_input.pop_back();
+		if (input_height == 130) {
+			strcpy(IPAdress, text_input.c_str());
+		}
+		else {
+			strcpy(Port, text_input.c_str());
+		}
+	}
+	//Press Tab
+	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_TAB) {
+		if (input_height == 330) {
+			input_height = 130;
+		}
+		else {
+			input_height += 100;
+		}
+		text_input = "";
+	}
+	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_RETURN && input_height == 330) {
+		try_connect = true;
+	}
+	SDL_Color color = { 200, 200, 200 };
+	SDL_SetRenderDrawColor(renderer, 80, 80, 80, SDL_ALPHA_OPAQUE);
+	SDL_Rect rect = { 99, input_height, 200, 20 };
+	SDL_RenderFillRect(renderer, &rect);
+	draw_text(TI{ 60, input_height }, (char*)"Tab", color);
+	
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+	rect = { 99, 130, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	rect = { 99, 230, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	rect = { 99, 330, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	
+	draw_text(TI{ 100, 100 }, (char*)"IP Address", color);
+	draw_text(TI{ 100, 200 }, (char*)"Port", color);
+	draw_text(TI{ 100, 300 }, (char*)"Play Game", color);
+	draw_text(TI{ 100, 330 }, (char*)"Press Enter", color);
+
+
+	draw_text(TI{ 100, 130 }, (char*)IPAdress, color);
+	draw_text(TI{ 100, 230 }, (char*)Port, color);
 }
 
 void Game::draw_game()
@@ -96,8 +180,22 @@ void Game::draw_game()
 	SDL_RenderFillRect(renderer, &player_rect);
 }
 
-SDL_Rect Game::get_rect(TI pos, TI size)
+void Game::draw_text(TI pos, char text[], SDL_Color color)
 {
-	SDL_Rect rect{ pos.x - size.x / 2, pos.y - size.y / 2, size.x, size.y };
-	return rect;
+	if (!font) {
+		printf("Could not open font! (%s)\n", TTF_GetError());
+		return;
+	}
+	SDL_Surface* surface = TTF_RenderText_Blended(font, text, color);
+	if (!surface) {
+		//cout << "no surface" << endl;
+		return;
+	}
+	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+	SDL_Rect r = { pos.x, pos.y, surface->w, surface->h };
+	SDL_RenderCopy(renderer, texture, NULL, &r);
+
+	SDL_FreeSurface(surface);
+	SDL_DestroyTexture(texture);
 }

@@ -9,8 +9,7 @@ int SDL_main(int argc, char* argv[])
 	Game* game = new Game();
 	Network* network = new Network(game);
 	
-	while (game->running()) {
-		game->handleEvents();
+	while (game->get_running()) {
 		game->clear();
 		game->update();
 		game->render();

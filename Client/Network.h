@@ -13,9 +13,7 @@ public:
 	
 	Game* game;
 	SOCKET s_socket;
+	bool connected = false;
 
-	const char* SERVER_ADDR = "127.0.0.1";
-	const short SERVER_PORT = 9000;
 private:
-	
 };
