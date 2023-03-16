@@ -65,30 +65,35 @@ DWORD __stdcall process(LPVOID arg)
 		}
 
 		while (network->game->get_running() && network->connected) {
-			WSABUF send_buff{};
-			DWORD sent_byte{};
-			send_buff.buf = (char*)&network->game->key_input;
-			send_buff.len = sizeof(network->game->key_input);
-			WSASend(network->s_socket, &send_buff, 1, &sent_byte, 0, 0, 0);
-			if (sent_byte == SOCKET_ERROR || sent_byte == 0) {
-				network->connected = false;
-				cout << "Send error" << endl;
-				network->game->scene = 0;
-				break;
-			}
-			network->game->key_input = { false, false, false, false };
+			if (network->game->key_input.up || network->game->key_input.down || network->game->key_input.left || network->game->key_input.right) {
+				WSABUF send_buff{};
+				DWORD sent_byte{};
+				send_buff.buf = (char*)&network->game->key_input;
+				send_buff.len = sizeof(network->game->key_input);
+				WSASend(network->s_socket, &send_buff, 1, &sent_byte, 0, 0, 0);
+				if (sent_byte == SOCKET_ERROR || sent_byte == 0) {
+					network->connected = false;
+					cout << "Send error" << endl;
+					network->game->scene = 0;
+					break;
+				}
+				network->game->key_input = { false, false, false, false };
 
-			WSABUF recv_buff{};
-			DWORD recv_byte{};
-			DWORD recv_flag = 0;
-			recv_buff.buf = (char*)&network->game->player->position;
-			recv_buff.len = sizeof(network->game->player->position);
-			WSARecv(network->s_socket, &recv_buff, 1, &recv_byte, &recv_flag, 0, 0);
-			if (recv_byte == SOCKET_ERROR || recv_byte == 0) {
-				network->connected = false;
-				cout << "Recv error" << endl;
-				network->game->scene = 0;
-				break;
+				WSABUF recv_buff{};
+				DWORD recv_byte{};
+				DWORD recv_flag = 0;
+				recv_buff.buf = (char*)&network->game->player->position;
+				recv_buff.len = sizeof(network->game->player->position);
+				WSARecv(network->s_socket, &recv_buff, 1, &recv_byte, &recv_flag, 0, 0);
+				if (recv_byte == SOCKET_ERROR || recv_byte == 0) {
+					network->connected = false;
+					cout << "Recv error" << endl;
+					network->game->scene = 0;
+					break;
+				}
+			}
+			else {
+				Sleep(10);
 			}
 		}
 	}

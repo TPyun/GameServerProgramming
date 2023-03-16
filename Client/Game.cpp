@@ -149,7 +149,6 @@ void Game::draw_main()
 	draw_text(TI{ 100, 300 }, (char*)"Play Game", color);
 	draw_text(TI{ 100, 330 }, (char*)"Press Enter", color);
 
-
 	draw_text(TI{ 100, 130 }, (char*)IPAdress, color);
 	draw_text(TI{ 100, 230 }, (char*)Port, color);
 }

@@ -47,6 +47,8 @@ int main()
 				cout << "Client Disconnected" << endl;
 				break;
 			}
+			
+			game->update();
 
 			WSABUF send_buff;
 			DWORD sent_byte;
@@ -58,7 +60,6 @@ int main()
 				break;
 			}
 
-			game->update();
 			Sleep(10);
 		}
 	}
