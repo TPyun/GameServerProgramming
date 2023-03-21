@@ -29,3 +29,7 @@ void Game::update()
 	std::cout << "Player Pos : " << player->position.x << ", " << player->position.y << std::endl;
 
 }
+
+void Game::add_player()
+{
+}

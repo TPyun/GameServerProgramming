@@ -177,6 +177,7 @@ void Game::draw_game()
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_Rect player_rect = get_rect(player->position, player->size);
 	SDL_RenderFillRect(renderer, &player_rect);
+	cout << player->position.x << " " << player->position.y << endl;
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)

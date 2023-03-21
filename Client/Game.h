@@ -29,7 +29,6 @@ public:
 	char scene{};
 
 private:
-	
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Event event{};
@@ -41,5 +40,4 @@ private:
 	//main scene
 	int input_height = 130;
 	std::string text_input;
-
 };
