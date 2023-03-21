@@ -44,19 +44,19 @@ void Game::handle_events()
 	}
 	if (event.type == SDL_KEYDOWN) {
 		if (event.key.keysym.sym == SDLK_UP) {
-			//std::cout << "UP" << std::endl;
+			std::cout << "UP" << std::endl;
 			key_input.up = true;
 		}
 		if (event.key.keysym.sym == SDLK_DOWN) {
-			//std::cout << "DOWN" << std::endl;
+			std::cout << "DOWN" << std::endl;
 			key_input.down = true;
 		}
 		if (event.key.keysym.sym == SDLK_LEFT) {
-			//std::cout << "LEFT" << std::endl;
+			std::cout << "LEFT" << std::endl;
 			key_input.left = true;
 		}
 		if (event.key.keysym.sym == SDLK_RIGHT) {
-			//std::cout << "RIGHT" << std::endl;
+			std::cout << "RIGHT" << std::endl;
 			key_input.right = true;
 		}
 	}
@@ -177,7 +177,7 @@ void Game::draw_game()
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_Rect player_rect = get_rect(player->position, player->size);
 	SDL_RenderFillRect(renderer, &player_rect);
-	cout << player->position.x << " " << player->position.y << endl;
+	//cout << player->position.x << " " << player->position.y << endl;
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)

@@ -1,6 +1,6 @@
 #include "Player.h"
 
-Player::Player(TI pos) : position(pos)
+Player::Player(TI pos, unsigned long long name) : position(pos), name(name)
 {
 }
 
@@ -15,4 +15,25 @@ void Player::move(TI direction)
 	}
 	position.x += direction.x;
 	position.y += direction.y;
+	std::cout << "Player Pos : " << position.x << ", " << position.y << std::endl;
+}
+
+void Player::key_check()
+{
+	if (key_input.up)
+	{
+		move(TI{ 0, -100 });
+	}
+	if (key_input.down)
+	{
+		move(TI{ 0, 100 });
+	}
+	if (key_input.left)
+	{
+		move(TI{ -100, 0 });
+	}
+	if (key_input.right)
+	{
+		move(TI{ 100, 0 });
+	}
 }

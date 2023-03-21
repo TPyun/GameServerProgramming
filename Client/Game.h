@@ -23,8 +23,8 @@ public:
 	KS key_input{ false, false, false, false };
 	Player* player = new Player(TI{ 0, 0 });
 	
-	char IPAdress[100] = "";
-	char Port[100] = "";
+	char IPAdress[100] = "127.0.0.1";
+	char Port[100] = "9000";
 	bool try_connect = false;
 	char scene{};
 
