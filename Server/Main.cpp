@@ -20,6 +20,8 @@ int main()
 	listen(s_socket, SOMAXCONN);
 	INT addr_size = sizeof(server_addr);
 	
+	cout << "Port: " << SERVER_PORT << endl;
+	
 	for (;;) {
 		cout << "Waiting for Client" << endl;
 
