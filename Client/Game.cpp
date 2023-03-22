@@ -101,7 +101,7 @@ void Game::draw_main()
 	if (event.type == SDL_TEXTINPUT && strlen(text_input.c_str()) < 20) {
 		text_input += event.text.text;
 		if (input_height == 130) {
-			strcpy(IPAdress, text_input.c_str());
+			strcpy(ip_address, text_input.c_str());
 		}
 		else {
 			strcpy(Port, text_input.c_str());
@@ -111,7 +111,7 @@ void Game::draw_main()
 	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_BACKSPACE && text_input.size()) {
 		text_input.pop_back();
 		if (input_height == 130) {
-			strcpy(IPAdress, text_input.c_str());
+			strcpy(ip_address, text_input.c_str());
 		}
 		else {
 			strcpy(Port, text_input.c_str());
@@ -130,6 +130,7 @@ void Game::draw_main()
 	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_RETURN && input_height == 330) {
 		try_connect = true;
 	}
+	
 	SDL_Color color = { 200, 200, 200 };
 	SDL_SetRenderDrawColor(renderer, 80, 80, 80, SDL_ALPHA_OPAQUE);
 	SDL_Rect rect = { 99, input_height, 200, 20 };
@@ -149,7 +150,7 @@ void Game::draw_main()
 	draw_text(TI{ 100, 300 }, (char*)"Play Game", color);
 	draw_text(TI{ 100, 330 }, (char*)"Press Enter", color);
 
-	draw_text(TI{ 100, 130 }, (char*)IPAdress, color);
+	draw_text(TI{ 100, 130 }, (char*)ip_address, color);
 	draw_text(TI{ 100, 230 }, (char*)Port, color);
 }
 
@@ -175,9 +176,10 @@ void Game::draw_game()
 	
 	//draw player
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	SDL_Rect player_rect = get_rect(player->position, player->size);
-	SDL_RenderFillRect(renderer, &player_rect);
-	//cout << player->position.x << " " << player->position.y << endl;
+	for (auto& player : players) {
+		SDL_Rect player_rect = get_rect(player.second.position, player.second.size);
+		SDL_RenderFillRect(renderer, &player_rect);
+	}
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)

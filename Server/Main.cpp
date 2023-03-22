@@ -88,22 +88,27 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 class EXP_OVER {
 public:
 	WSAOVERLAPPED send_over;
-	unsigned long long client_id;
+	int root_client_id;
 	WSABUF wsa_buf;
 	char send_data[BUFSIZE];
 	
 public:
-	EXP_OVER(char num_bytes, unsigned long long client_id, TI data) : client_id(client_id)
+	EXP_OVER(int client_id, int root_client_id, TI data) : root_client_id(root_client_id)
 	{
 		ZeroMemory(&send_over, sizeof(send_over));
 		//send_over.hEvent = reinterpret_cast<HANDLE>(client_id);
-
-		send_data[0] = num_bytes + 2;							// 1. size
-		send_data[1] = static_cast<char>(client_id);			// 2. client id
-		memcpy(send_data + 2, &data, num_bytes);	// 3. real data
+		char data_size = sizeof(TI);
+		send_data[0] = data_size + 2;							// 1. size
+		if (client_id == root_client_id) {						// 2. client id
+			send_data[1] = 0;
+		}
+		else {
+			send_data[1] = static_cast<char>(root_client_id);
+		}
+		memcpy(send_data + 2, &data, data_size);		// 3. real data
 
 		wsa_buf.buf = send_data;
-		wsa_buf.len = num_bytes + 2;
+		wsa_buf.len = data_size + 2;
 	}
 
 	~EXP_OVER() {}
@@ -113,7 +118,7 @@ class SESSION {
 private:
 	SOCKET socket;
 	WSAOVERLAPPED recv_over;
-	unsigned long long client_id;
+	int client_id;
 	
 public:
 	//WSABUF send_wsa_buff;
@@ -135,13 +140,7 @@ public:
 	
 	~SESSION() { closesocket(socket); }
 	
-	int send_i{};
-	int recv_i{};
-	
 	void do_recv() {
-		recv_i++;
-		cout << "recv: " << client_id << " " << recv_i << endl;
-
 		DWORD recv_flag = 0;
 		ZeroMemory(&recv_over, sizeof(recv_over));
 		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
@@ -149,38 +148,31 @@ public:
 		WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
 	}
 	
-	void do_send() {
-		send_i++;
-		cout << "send: " << client_id << " " << send_i << endl;
-		
-		EXP_OVER* send_over = new EXP_OVER(sizeof(player.position), client_id, player.position);
-		cout << player.position.x << " " << player.position.y << endl;
-		cout << "Size " << send_over->wsa_buf.len << endl;
+	void do_send(int root_client_id, TI data) {
+		EXP_OVER* send_over = new EXP_OVER(client_id, root_client_id, data);
 		WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->send_over, send_callback);
 	}
 };
 
-unordered_map <unsigned long long, SESSION> clients;
+unordered_map <int, SESSION> clients;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag)
 {
-	//unsigned long long client_id = reinterpret_cast<unsigned long long>(send_over->hEvent);
+	//int client_id = reinterpret_cast<int>(send_over->hEvent);
 	delete reinterpret_cast<EXP_OVER*>(send_over);
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag)	
 {
 	//recv하고나서 클라한테 받은 데이터 적용
-	unsigned long long client_id = reinterpret_cast<unsigned long long>(recv_over->hEvent);
-	
+	int client_id = reinterpret_cast<int>(recv_over->hEvent);
+	clients[client_id].player.key_check();
+	cout << client_id << " " << clients[client_id].player.position.x << " " << clients[client_id].player.position.y << endl;
+
 	//모든 클라한테 데이터 전송
 	for (auto& client : clients) {
-		//cout << client.second.player.key_input.up << " " << client.second.player.key_input.down << " " << client.second.player.key_input.left << " " << client.second.player.key_input.right << endl;
-		client.second.player.key_check();
-		client.second.do_send();
+		client.second.do_send(client_id, clients[client_id].player.position);
 	}
-	/*clients[client_id].player.key_check();
-	clients[client_id].do_send();*/
 
 	clients[client_id].do_recv();
 }

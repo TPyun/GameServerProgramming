@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <unordered_map>
 #include "Player.h"
 
 class Game
@@ -21,9 +22,10 @@ public:
 
 	//ingame scene
 	KS key_input{ false, false, false, false };
-	Player* player = new Player(TI{ 0, 0 });
-	
-	char IPAdress[100] = "127.0.0.1";
+	//Player* player = new Player(TI{ 0, 0 });
+	std::unordered_map <int, Player> players;
+
+	char ip_address[100] = "127.0.0.1";
 	char Port[100] = "9000";
 	bool try_connect = false;
 	char scene{};

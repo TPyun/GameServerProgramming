@@ -27,18 +27,17 @@ using namespace std;
 WSAOVERLAPPED over;
 WSABUF send_wsa_buffer;
 WSABUF recv_wsa_buffer;
-constexpr int BUF_SIZE = 64;
-char s_buf[BUF_SIZE];
+constexpr int BUF_SIZE = 512;
+char recv_buffer[BUF_SIZE];
 Game* game;
 SOCKET server_socket;
 bool connected = false;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 
-void do_send_message()
+void send()
 {
-	Sleep(100);
-
+	Sleep(10);
 	if (game->key_input.up || game->key_input.down || game->key_input.left || game->key_input.right)
 		cout << game->key_input.up << " " << game->key_input.down << " " << game->key_input.left << " " << game->key_input.right << endl;
 	
@@ -52,25 +51,25 @@ void do_send_message()
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD flags)
 {
+	char* p = recv_buffer;
 	
-	char* p = s_buf;
-	while (p < s_buf + num_bytes) {
+	while (p < recv_buffer + num_bytes) {
 		char packet_size = *p;
-		char c_id = *(p + 1);
-		if (c_id == 1) { 
-			
-			memcpy(&game->player->position, (p + 2), sizeof(game->player->position));
-		}
+		char client_id = *(p + 1);
+
+		memcpy(&game->players[client_id].position, (p + 2), sizeof(game->players[client_id].position));
+		cout << "ID: " << (int)client_id << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
+
 		p = p + packet_size;
 	}
-	do_send_message();
+	send();
 }
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
 {
 	game->key_input = { false, false, false, false };
 	
-	recv_wsa_buffer = { BUF_SIZE, s_buf };
+	recv_wsa_buffer = { BUF_SIZE, recv_buffer };
 
 	DWORD recv_flag = 0;
 	memset(over, 0, sizeof(*over));
@@ -101,7 +100,7 @@ DWORD __stdcall process(LPVOID arg)
 			ssInt >> port_num;
 
 			server_address.sin_port = htons(port_num);
-			inet_pton(AF_INET, game->IPAdress, &server_address.sin_addr);
+			inet_pton(AF_INET, game->ip_address, &server_address.sin_addr);
 
 			int retval = WSAConnect(server_socket, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address), 0, 0, 0, 0);
 			if (retval == SOCKET_ERROR) {
@@ -113,7 +112,7 @@ DWORD __stdcall process(LPVOID arg)
 			connected = true;
 			game->scene = 1;
 
-			do_send_message();
+			send();
 
 			while (game->get_running() && connected) {
 				SleepEx(10, true);
