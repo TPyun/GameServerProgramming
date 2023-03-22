@@ -25,7 +25,10 @@
 using namespace std;
 
 WSAOVERLAPPED over;
-WSABUF wsa_buffer;
+WSABUF send_wsa_buffer;
+WSABUF recv_wsa_buffer;
+constexpr int BUF_SIZE = 64;
+char s_buf[BUF_SIZE];
 Game* game;
 SOCKET server_socket;
 bool connected = false;
@@ -34,21 +37,32 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 
 void do_send_message()
 {
-	Sleep(10);
+	Sleep(100);
 
 	if (game->key_input.up || game->key_input.down || game->key_input.left || game->key_input.right)
 		cout << game->key_input.up << " " << game->key_input.down << " " << game->key_input.left << " " << game->key_input.right << endl;
 	
-	wsa_buffer.buf = (char*)&game->key_input;
-	wsa_buffer.len = sizeof(game->key_input);
+	send_wsa_buffer.buf = (char*)&game->key_input;
+	send_wsa_buffer.len = sizeof(game->key_input);
 
 	memset(&over, 0, sizeof(over));
 	
-	WSASend(server_socket, &wsa_buffer, 1, 0, 0, &over, send_callback);
+	WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &over, send_callback);
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD flags)
 {
+	
+	char* p = s_buf;
+	while (p < s_buf + num_bytes) {
+		char packet_size = *p;
+		char c_id = *(p + 1);
+		if (c_id == 1) { 
+			
+			memcpy(&game->player->position, (p + 2), sizeof(game->player->position));
+		}
+		p = p + packet_size;
+	}
 	do_send_message();
 }
 
@@ -56,12 +70,11 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 {
 	game->key_input = { false, false, false, false };
 	
-	wsa_buffer.buf = (char*)&game->player->position;
-	wsa_buffer.len = sizeof(game->player->position);
+	recv_wsa_buffer = { BUF_SIZE, s_buf };
 
 	DWORD recv_flag = 0;
 	memset(over, 0, sizeof(*over));
-	WSARecv(server_socket, &wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
+	WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
 }
 
 DWORD __stdcall process(LPVOID arg)
@@ -96,7 +109,6 @@ DWORD __stdcall process(LPVOID arg)
 				return 0;
 			}
 			cout << "Connected to server" << endl;
-
 
 			connected = true;
 			game->scene = 1;

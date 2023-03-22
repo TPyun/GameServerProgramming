@@ -85,48 +85,78 @@ const int BUFSIZE = 256;
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
 
+class EXP_OVER {
+public:
+	WSAOVERLAPPED send_over;
+	unsigned long long client_id;
+	WSABUF wsa_buf;
+	char send_data[BUFSIZE];
+	
+public:
+	EXP_OVER(char num_bytes, unsigned long long client_id, TI data) : client_id(client_id)
+	{
+		ZeroMemory(&send_over, sizeof(send_over));
+		//send_over.hEvent = reinterpret_cast<HANDLE>(client_id);
+
+		send_data[0] = num_bytes + 2;							// 1. size
+		send_data[1] = static_cast<char>(client_id);			// 2. client id
+		memcpy(send_data + 2, &data, num_bytes);	// 3. real data
+
+		wsa_buf.buf = send_data;
+		wsa_buf.len = num_bytes + 2;
+	}
+
+	~EXP_OVER() {}
+};
+
 class SESSION {
 private:
 	SOCKET socket;
-	WSAOVERLAPPED over;
-	unsigned long long id;
+	WSAOVERLAPPED recv_over;
+	unsigned long long client_id;
 	
 public:
-	WSABUF send_wsa_buff;
+	//WSABUF send_wsa_buff;
 	WSABUF recv_wsa_buff;
-	Player player{ TI{ 450, 750 }, id};
+	Player player{ TI{ 450, 750 }, client_id};
 
 	SESSION() {
 		cout << "Unexpected Constructor Call Error!\n";
 		exit(-1);
 	}
 	
-	SESSION(int id, SOCKET s) : id(id), socket(s) {
+	SESSION(int id, SOCKET s) : client_id(id), socket(s) {
 		recv_wsa_buff.buf = (char*)&player.key_input;
 		recv_wsa_buff.len = sizeof(player.key_input);
+
+		//send_wsa_buff.buf = (char*)&player.position;
+		//send_wsa_buff.len = sizeof(player.position);
 	}
 	
 	~SESSION() { closesocket(socket); }
 	
+	int send_i{};
+	int recv_i{};
+	
 	void do_recv() {
-		DWORD recv_flag = 0;
-		ZeroMemory(&over, sizeof(over));
-		over.hEvent = reinterpret_cast<HANDLE>(id);
-		cout << "Recv" << endl;
+		recv_i++;
+		cout << "recv: " << client_id << " " << recv_i << endl;
 
-		WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &over, recv_callback);
+		DWORD recv_flag = 0;
+		ZeroMemory(&recv_over, sizeof(recv_over));
+		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
+		
+		WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
 	}
 	
 	void do_send() {
-		Sleep(10);
-
-		ZeroMemory(&over, sizeof(over));
-		over.hEvent = reinterpret_cast<HANDLE>(id);
-
-		send_wsa_buff.buf = (char*)&player.position;
-		send_wsa_buff.len = sizeof(player.position);
-		cout << "Send" << endl;
-		WSASend(socket, &send_wsa_buff, 1, 0, 0, &over, send_callback);
+		send_i++;
+		cout << "send: " << client_id << " " << send_i << endl;
+		
+		EXP_OVER* send_over = new EXP_OVER(sizeof(player.position), client_id, player.position);
+		cout << player.position.x << " " << player.position.y << endl;
+		cout << "Size " << send_over->wsa_buf.len << endl;
+		WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->send_over, send_callback);
 	}
 };
 
@@ -134,8 +164,8 @@ unordered_map <unsigned long long, SESSION> clients;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag)
 {
-	unsigned long long client_id = reinterpret_cast<unsigned long long>(send_over->hEvent);
-	
+	//unsigned long long client_id = reinterpret_cast<unsigned long long>(send_over->hEvent);
+	delete reinterpret_cast<EXP_OVER*>(send_over);
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag)	
@@ -144,15 +174,15 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 	unsigned long long client_id = reinterpret_cast<unsigned long long>(recv_over->hEvent);
 	
 	//모든 클라한테 데이터 전송
-	/*for (auto& client : clients) {
+	for (auto& client : clients) {
+		//cout << client.second.player.key_input.up << " " << client.second.player.key_input.down << " " << client.second.player.key_input.left << " " << client.second.player.key_input.right << endl;
 		client.second.player.key_check();
 		client.second.do_send();
-	}*/
-	clients[client_id].player.key_check();
-	clients[client_id].do_send();
+	}
+	/*clients[client_id].player.key_check();
+	clients[client_id].do_send();*/
 
 	clients[client_id].do_recv();
-
 }
 
 int main()
