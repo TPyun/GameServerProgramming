@@ -80,23 +80,24 @@
 using namespace std;
 
 const short SERVER_PORT = 9000;
-const int BUFSIZE = 256;
+const int BUFSIZE = 100;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
+void delete_session(int);
 
-class EXP_OVER {
+class PACKET {
 public:
-	WSAOVERLAPPED send_over;
+	WSAOVERLAPPED send_over;	//클래스의 맨 첫번째에 있어야만 함. 이거를 가지고 클래스 포인터 위치 찾을거임
 	int root_client_id;
-	WSABUF wsa_buf;
+	WSABUF send_wsa_buf;
 	char send_data[BUFSIZE];
 	
-public:
-	EXP_OVER(int client_id, int root_client_id, TI data) : root_client_id(root_client_id)
+	PACKET(int client_id, int root_client_id, TI data) : root_client_id(root_client_id)
 	{
 		ZeroMemory(&send_over, sizeof(send_over));
-		//send_over.hEvent = reinterpret_cast<HANDLE>(client_id);
+		send_over.hEvent = reinterpret_cast<HANDLE>(client_id);
+		
 		char data_size = sizeof(TI);
 		send_data[0] = data_size + 2;							// 1. size
 		if (client_id == root_client_id) {						// 2. client id
@@ -107,11 +108,11 @@ public:
 		}
 		memcpy(send_data + 2, &data, data_size);		// 3. real data
 
-		wsa_buf.buf = send_data;
-		wsa_buf.len = data_size + 2;
+		send_wsa_buf.buf = send_data;
+		send_wsa_buf.len = data_size + 2;
 	}
 
-	~EXP_OVER() {}
+	~PACKET() {}
 };
 
 class SESSION {
@@ -121,7 +122,6 @@ private:
 	int client_id;
 	
 public:
-	//WSABUF send_wsa_buff;
 	WSABUF recv_wsa_buff;
 	Player player{ TI{ 450, 750 }, client_id};
 
@@ -133,9 +133,6 @@ public:
 	SESSION(int id, SOCKET s) : client_id(id), socket(s) {
 		recv_wsa_buff.buf = (char*)&player.key_input;
 		recv_wsa_buff.len = sizeof(player.key_input);
-
-		//send_wsa_buff.buf = (char*)&player.position;
-		//send_wsa_buff.len = sizeof(player.position);
 	}
 	
 	~SESSION() { closesocket(socket); }
@@ -144,13 +141,16 @@ public:
 		DWORD recv_flag = 0;
 		ZeroMemory(&recv_over, sizeof(recv_over));
 		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
+		cout << "Recv client id " << client_id << endl;
 		
 		WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
 	}
 	
 	void do_send(int root_client_id, TI data) {
-		EXP_OVER* send_over = new EXP_OVER(client_id, root_client_id, data);
-		WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->send_over, send_callback);
+		cout << "DO SEND " << client_id << endl;
+		PACKET* exp_over = new PACKET{ client_id, root_client_id, data };
+		
+		WSASend(socket, &exp_over->send_wsa_buf, 1, 0, 0, &exp_over->send_over, send_callback);
 	}
 };
 
@@ -158,23 +158,44 @@ unordered_map <int, SESSION> clients;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag)
 {
-	//int client_id = reinterpret_cast<int>(send_over->hEvent);
-	delete reinterpret_cast<EXP_OVER*>(send_over);
+	PACKET* exp_over = reinterpret_cast<PACKET*>(send_over);	//PACKET 클래스의 첫번째 변수 주소를 가지고 PACKET 클래스 포인터를 찾음
+	int client_id = reinterpret_cast<int>(exp_over->send_over.hEvent);
+	if (err != 0) {
+		cout << "send_callback Error: " << err << " Client ID: " << (int)send_over->hEvent << endl;
+		delete_session(client_id);
+	}
+	
+	cout << "send_callback: " << client_id << endl;
+	delete exp_over;
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag)	
 {
+	if (err != 0) {
+		cout << "recv_callback Error: " << err << " Client_ID: " << (int)recv_over->hEvent << endl;
+		int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
+		delete_session(root_client_id);
+		return;
+	}
+	
 	//recv하고나서 클라한테 받은 데이터 적용
-	int client_id = reinterpret_cast<int>(recv_over->hEvent);
-	clients[client_id].player.key_check();
-	cout << client_id << " " << clients[client_id].player.position.x << " " << clients[client_id].player.position.y << endl;
+	int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
+	cout << "recv_callback: " << root_client_id << endl;
+	clients[root_client_id].player.key_check();
 
 	//모든 클라한테 데이터 전송
 	for (auto& client : clients) {
-		client.second.do_send(client_id, clients[client_id].player.position);
+		cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
+		client.second.do_send(root_client_id, clients[root_client_id].player.position);
 	}
+	
+	clients[root_client_id].do_recv();
+}
 
-	clients[client_id].do_recv();
+void delete_session(int client_id) 
+{
+	cout << "DELETE SESSION: " << client_id << endl;
+	clients.erase(client_id);
 }
 
 int main()

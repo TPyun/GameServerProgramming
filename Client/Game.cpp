@@ -103,7 +103,7 @@ void Game::draw_main()
 		if (input_height == 130) {
 			strcpy(ip_address, text_input.c_str());
 		}
-		else {
+		else if (input_height == 230) {
 			strcpy(Port, text_input.c_str());
 		}
 	}
@@ -113,7 +113,7 @@ void Game::draw_main()
 		if (input_height == 130) {
 			strcpy(ip_address, text_input.c_str());
 		}
-		else {
+		else if (input_height == 230) {
 			strcpy(Port, text_input.c_str());
 		}
 	}
