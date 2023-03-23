@@ -18,26 +18,26 @@
 //private:
 //};
 
-
+#pragma once
 #include <iostream>
 #include <sstream>
 #include "Game.h"
 using namespace std;
 
+Game* game;
+SOCKET server_socket;
 WSAOVERLAPPED over;
 WSABUF send_wsa_buffer;
 WSABUF recv_wsa_buffer;
 constexpr int BUF_SIZE = 1000;
 char recv_buffer[BUF_SIZE];
-Game* game;
-SOCKET server_socket;
 bool connected = false;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 
 void send()
 {
-	Sleep(10);
+	Sleep(50);
 
 	send_wsa_buffer.buf = (char*)&game->key_input;
 	send_wsa_buffer.len = sizeof(game->key_input);
@@ -46,14 +46,11 @@ void send()
 	
 	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &over, send_callback);
 	cout << "WSASend retval: " << retval << endl;
-	if (retval == SOCKET_ERROR)
-	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
-		{
-			cout << "WSASend failed with error: " << WSAGetLastError() << endl;
-			connected = false;
-			return;
-		}
+	//Send Error Handling
+	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING){
+		cout << "WSASend failed with error: " << WSAGetLastError() << endl;
+		connected = false;
+		return;
 	}
 }
 
@@ -68,8 +65,11 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 		char client_id = *(packet + 1);
 
 		memcpy(&game->players[client_id].position, (packet + 2), sizeof(TI));
-		//cout << "ID: " << (int)client_id << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
-
+		if (game->players[client_id].position.x == -1 && game->players[client_id].position.y == -1) {
+			game->mtx.lock();
+			game->players.erase(client_id);
+			game->mtx.unlock();
+		}
 		packet = packet + packet_size;
 	}
 	send();
@@ -85,23 +85,20 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 
 	DWORD recv_flag = 0;
 	memset(over, 0, sizeof(*over));
+	
 	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
 	cout << "WSARecv retval: " << retval << endl;
-	if (retval == SOCKET_ERROR)
-	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
-		{
-			cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
-			connected = false;
-			return;
-		}
+	//Recv Error Handling
+	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
+		connected = false;
+		return;
 	}
 }
 
 DWORD __stdcall process(LPVOID arg)
 {
-	Game* game_ptr = reinterpret_cast<Game*>(arg);
-	game = game_ptr;
+	game = reinterpret_cast<Game*>(arg);
 
 	for (;;) {
 		while (!connected) {

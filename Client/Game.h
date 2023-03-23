@@ -2,6 +2,7 @@
 #include <string>
 #include <unordered_map>
 #include "Player.h"
+#include <mutex>
 
 class Game
 {
@@ -24,6 +25,7 @@ public:
 	KS key_input{ false, false, false, false };
 	//Player* player = new Player(TI{ 0, 0 });
 	std::unordered_map <int, Player> players;
+	std::mutex mtx;
 
 	char ip_address[100] = "127.0.0.1";
 	char Port[100] = "9000";

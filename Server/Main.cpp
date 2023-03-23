@@ -74,17 +74,18 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <random>
 #include "Player.h"
 #pragma comment (lib, "WS2_32.LIB")
-
 using namespace std;
 
 const short SERVER_PORT = 9000;
-const int BUFSIZE = 100;
+const int BUFSIZE = 4000;
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
 void delete_session(int);
+TI randomly_locate_player();
 
 class PACKET {
 public:
@@ -123,7 +124,7 @@ private:
 	
 public:
 	WSABUF recv_wsa_buff;
-	Player player{ TI{ 450, 750 }, client_id};
+	Player player{ randomly_locate_player(), client_id};
 
 	SESSION() {
 		cout << "Unexpected Constructor Call Error!\n";
@@ -141,16 +142,18 @@ public:
 		DWORD recv_flag = 0;
 		ZeroMemory(&recv_over, sizeof(recv_over));
 		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
-		cout << "Recv client id " << client_id << endl;
+		//cout << "Recv client id " << client_id << endl;
 		
-		WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
+		int retval = WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
+		//cout << "Recv retval " << retval << endl;
 	}
 	
 	void do_send(int root_client_id, TI data) {
-		cout << "DO SEND " << client_id << endl;
+		//cout << "DO SEND " << client_id << endl;
 		PACKET* exp_over = new PACKET{ client_id, root_client_id, data };
 		
-		WSASend(socket, &exp_over->send_wsa_buf, 1, 0, 0, &exp_over->send_over, send_callback);
+		int retval = WSASend(socket, &exp_over->send_wsa_buf, 1, 0, 0, &exp_over->send_over, send_callback);
+		//cout << "Send retval " << retval << endl;
 	}
 };
 
@@ -160,32 +163,41 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_ove
 {
 	PACKET* exp_over = reinterpret_cast<PACKET*>(send_over);	//PACKET 클래스의 첫번째 변수 주소를 가지고 PACKET 클래스 포인터를 찾음
 	int client_id = reinterpret_cast<int>(exp_over->send_over.hEvent);
+	
+	//Send Error Handling
 	if (err != 0) {
-		cout << "send_callback Error: " << err << " Client ID: " << (int)send_over->hEvent << endl;
+		cout << "Send Callback Error " << err << endl;
 		delete_session(client_id);
 	}
-	
-	cout << "send_callback: " << client_id << endl;
+
+	//cout << "send_callback: " << client_id << endl;
 	delete exp_over;
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag)	
 {
+	int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
+
+	//Recv Error Handling
 	if (err != 0) {
 		cout << "recv_callback Error: " << err << " Client_ID: " << (int)recv_over->hEvent << endl;
-		int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
+		cout << "Byte received: " << num_bytes << endl;
+		for (auto& client : clients) {
+			if (client.first == root_client_id) continue;
+			cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
+			client.second.do_send(root_client_id, TI{ -1, -1 });
+		}
 		delete_session(root_client_id);
 		return;
 	}
 	
 	//recv하고나서 클라한테 받은 데이터 적용
-	int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
-	cout << "recv_callback: " << root_client_id << endl;
+	//cout << "recv_callback: " << root_client_id << endl;
 	clients[root_client_id].player.key_check();
 
 	//모든 클라한테 데이터 전송
 	for (auto& client : clients) {
-		cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
+		//cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
 		client.second.do_send(root_client_id, clients[root_client_id].player.position);
 	}
 	
@@ -194,8 +206,26 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 
 void delete_session(int client_id) 
 {
-	cout << "DELETE SESSION: " << client_id << endl;
+	//cout << "DELETE SESSION: " << client_id << endl;
 	clients.erase(client_id);
+}
+
+TI randomly_locate_player()
+{
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution <int>spawn_location(0, 700 / 100);
+	do {
+		bool same_location = false;
+		TI player_location{ spawn_location(dre) * 100 + 50, spawn_location(dre) * 100 + 50 };
+		for (auto& client : clients) {
+			if (client.second.player.position.x == player_location.x && client.second.player.position.y == player_location.y) {
+				same_location = true;
+				break;
+			}
+		}
+		if (!same_location) return player_location;
+	} while (true);
 }
 
 int main()
@@ -218,7 +248,7 @@ int main()
 		SOCKET client_socket = WSAAccept(server_socket, reinterpret_cast<sockaddr*>(&server_addr), &addr_size, 0, 0);
 		clients.try_emplace(i, i, client_socket);
 		clients[i].do_recv();
-		cout << "Client added" << endl;
+		cout << "Client added: " << i << endl;
 	}
 	
 	clients.clear();

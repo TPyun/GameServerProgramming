@@ -1,7 +1,10 @@
 #include "Player.h"
 
+using namespace std;
+
 Player::Player(TI pos, unsigned long long name) : position(pos), name(name)
 {
+	cout<< "New Player: " << name << " Location: " << pos.x << ", " << pos.y << endl;
 }
 
 Player::~Player()

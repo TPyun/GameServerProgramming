@@ -1,3 +1,4 @@
+#pragma once
 #define _CRT_SECURE_NO_WARNINGS
 #include "Game.h"
 
@@ -175,11 +176,17 @@ void Game::draw_game()
 	}
 	
 	//draw player
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	mtx.lock();
 	for (auto& player : players) {
+		if(player.first == 0)
+			SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+		else
+			SDL_SetRenderDrawColor(renderer, 200, 0, 0, SDL_ALPHA_OPAQUE);
+
 		SDL_Rect player_rect = get_rect(player.second.position, player.second.size);
 		SDL_RenderFillRect(renderer, &player_rect);
 	}
+	mtx.unlock();
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)
