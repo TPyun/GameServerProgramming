@@ -4,15 +4,15 @@
 class Player
 {
 public:
-	Player(TI, unsigned long long);
-	~Player();
-	void move(TI);
-	void key_check();
-
-	unsigned long long name{};
+	int name{};
 	KS key_input;
 	TI position{ 0, 0 };
 	TI size{ 40, 40 };
+	
+	Player(TI, int);
+	~Player();
+	void move(TI);
+	void key_check();
 
 private:
 

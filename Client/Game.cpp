@@ -178,15 +178,18 @@ void Game::draw_game()
 	//draw player
 	mtx.lock();
 	for (auto& player : players) {
-		if(player.first == 0)
-			SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+		if (player.first == 0)
+			continue;
 		else
 			SDL_SetRenderDrawColor(renderer, 200, 0, 0, SDL_ALPHA_OPAQUE);
-
 		SDL_Rect player_rect = get_rect(player.second.position, player.second.size);
 		SDL_RenderFillRect(renderer, &player_rect);
 	}
 	mtx.unlock();
+	
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_Rect player_rect = get_rect(players[0].position, players[0].size);
+	SDL_RenderFillRect(renderer, &player_rect);
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)

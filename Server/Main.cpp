@@ -85,7 +85,7 @@ const int BUFSIZE = 4000;
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
 void delete_session(int);
-TI randomly_locate_player();
+TI randomly_spawn_player();
 
 class PACKET {
 public:
@@ -124,7 +124,7 @@ private:
 	
 public:
 	WSABUF recv_wsa_buff;
-	Player player{ randomly_locate_player(), client_id};
+	Player player{ randomly_spawn_player(), client_id };
 
 	SESSION() {
 		cout << "Unexpected Constructor Call Error!\n";
@@ -206,19 +206,22 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 
 void delete_session(int client_id) 
 {
-	//cout << "DELETE SESSION: " << client_id << endl;
+	cout << "DELETE SESSION: " << client_id << endl;
 	clients.erase(client_id);
 }
 
-TI randomly_locate_player()
+TI randomly_spawn_player()
 {
 	random_device rd;
 	default_random_engine dre(rd());
-	uniform_int_distribution <int>spawn_location(0, 700 / 100);
+	uniform_int_distribution <int>spawn_location(0, 7);
 	do {
 		bool same_location = false;
 		TI player_location{ spawn_location(dre) * 100 + 50, spawn_location(dre) * 100 + 50 };
-		for (auto& client : clients) {
+		if (clients.size() >= 64) {		//Ä­ÀÌ 64°³´Ï±î 64¸í ³Ñ¾î°¡¸é °Á °ãÄ¡°Ô µÒ
+			return player_location;
+		}
+		for (auto& client : clients) {	//À§Ä¡ °ãÄ¡¸é ·£´ý ´Ù½Ã µ¹¸²
 			if (client.second.player.position.x == player_location.x && client.second.player.position.y == player_location.y) {
 				same_location = true;
 				break;
@@ -244,11 +247,16 @@ int main()
 	
 	cout << "Port: " << SERVER_PORT << endl;
 	
-	for (int i = 1; ; ++i) {
+	for (;;) {
 		SOCKET client_socket = WSAAccept(server_socket, reinterpret_cast<sockaddr*>(&server_addr), &addr_size, 0, 0);
-		clients.try_emplace(i, i, client_socket);
-		clients[i].do_recv();
-		cout << "Client added: " << i << endl;
+		for (int i = 1; ; i++) {
+			if (clients.find(i) == clients.end()) {
+				clients.try_emplace(i, i, client_socket);
+				clients[i].do_recv();
+				cout << "Client added: " << i << endl;
+				break;
+			}
+		}
 	}
 	
 	clients.clear();

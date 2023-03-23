@@ -2,7 +2,7 @@
 
 using namespace std;
 
-Player::Player(TI pos, unsigned long long name) : position(pos), name(name)
+Player::Player(TI pos, int name) : position(pos), name(name)
 {
 	cout<< "New Player: " << name << " Location: " << pos.x << ", " << pos.y << endl;
 }
@@ -23,20 +23,20 @@ void Player::move(TI direction)
 
 void Player::key_check()
 {
-	if (key_input.up)
-	{
+	if (key_input.up){
 		move(TI{ 0, -100 });
+		key_input.up = false;
 	}
-	if (key_input.down)
-	{
+	if (key_input.down){
 		move(TI{ 0, 100 });
+		key_input.down = false;
 	}
-	if (key_input.left)
-	{
+	if (key_input.left){
 		move(TI{ -100, 0 });
+		key_input.left = false;
 	}
-	if (key_input.right)
-	{
+	if (key_input.right){
 		move(TI{ 100, 0 });
+		key_input.right = false;
 	}
 }
