@@ -4,13 +4,13 @@
 class Player
 {
 public:
+	TI position{ -500, -500 };
+	TI size{ 40, 40 };
+	unsigned long long name{};
+
 	Player();
 	Player(TI);
 	~Player();
-	
-	unsigned long long name{};
-	TI position{ 0, 0 };
-	TI size{ 40, 40 };
 	
 private:
 	

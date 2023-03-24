@@ -37,40 +37,17 @@ Game::~Game()
 	SDL_Quit();
 }
 
-void Game::handle_events()
-{
-	SDL_PollEvent(&event);
-	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE) {
-		isRunning = false;
-	}
-	if (event.type == SDL_KEYDOWN) {
-		if (event.key.keysym.sym == SDLK_UP) {
-			std::cout << "UP" << std::endl;
-			key_input.up = true;
-		}
-		if (event.key.keysym.sym == SDLK_DOWN) {
-			std::cout << "DOWN" << std::endl;
-			key_input.down = true;
-		}
-		if (event.key.keysym.sym == SDLK_LEFT) {
-			std::cout << "LEFT" << std::endl;
-			key_input.left = true;
-		}
-		if (event.key.keysym.sym == SDLK_RIGHT) {
-			std::cout << "RIGHT" << std::endl;
-			key_input.right = true;
-		}
-	}
-}
 
 void Game::update()
 {
+	SDL_PollEvent(&event);
 	if (scene == 0) {
 		draw_main();
+		main_handle_events();
 	}
-	if (scene == 1) {
-		handle_events();
+	else if (scene == 1) {
 		draw_game();
+		game_handle_events();
 	}
 }
 
@@ -93,11 +70,36 @@ SDL_Rect Game::get_rect(TI pos, TI size)
 
 void Game::draw_main()
 {
-	SDL_PollEvent(&event);
-	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE) {
-		isRunning = false;
-	}
+	SDL_Color color = { 200, 200, 200 };
+	SDL_SetRenderDrawColor(renderer, 80, 80, 80, SDL_ALPHA_OPAQUE);
+	SDL_Rect rect = { 99, input_height, 200, 20 };
+	SDL_RenderFillRect(renderer, &rect);
+	draw_text(TI{ 60, input_height }, (char*)"Tab", color);
 	
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+	rect = { 99, 130, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	rect = { 99, 230, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	rect = { 99, 330, 200, 20 };
+	SDL_RenderDrawRect(renderer, &rect);
+	
+	draw_text(TI{ 100, 100 }, (char*)"IP Address", color);
+	draw_text(TI{ 100, 200 }, (char*)"Port", color);
+	draw_text(TI{ 100, 300 }, (char*)"Play Game", color);
+	draw_text(TI{ 100, 330 }, (char*)"Press Enter", color);
+
+	draw_text(TI{ 100, 130 }, (char*)ip_address, color);
+	draw_text(TI{ 100, 230 }, (char*)Port, color);
+}
+
+void Game::main_handle_events()
+{
+	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE && event.type == SDL_KEYDOWN) {
+		cout << "Game closed!" << endl;
+		isRunning = false;
+		return;
+	}
 	//Press button to add text
 	if (event.type == SDL_TEXTINPUT && strlen(text_input.c_str()) < 20) {
 		text_input += event.text.text;
@@ -131,28 +133,6 @@ void Game::draw_main()
 	else if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_RETURN && input_height == 330) {
 		try_connect = true;
 	}
-	
-	SDL_Color color = { 200, 200, 200 };
-	SDL_SetRenderDrawColor(renderer, 80, 80, 80, SDL_ALPHA_OPAQUE);
-	SDL_Rect rect = { 99, input_height, 200, 20 };
-	SDL_RenderFillRect(renderer, &rect);
-	draw_text(TI{ 60, input_height }, (char*)"Tab", color);
-	
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-	rect = { 99, 130, 200, 20 };
-	SDL_RenderDrawRect(renderer, &rect);
-	rect = { 99, 230, 200, 20 };
-	SDL_RenderDrawRect(renderer, &rect);
-	rect = { 99, 330, 200, 20 };
-	SDL_RenderDrawRect(renderer, &rect);
-	
-	draw_text(TI{ 100, 100 }, (char*)"IP Address", color);
-	draw_text(TI{ 100, 200 }, (char*)"Port", color);
-	draw_text(TI{ 100, 300 }, (char*)"Play Game", color);
-	draw_text(TI{ 100, 330 }, (char*)"Press Enter", color);
-
-	draw_text(TI{ 100, 130 }, (char*)ip_address, color);
-	draw_text(TI{ 100, 230 }, (char*)Port, color);
 }
 
 void Game::draw_game()
@@ -190,6 +170,33 @@ void Game::draw_game()
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_Rect player_rect = get_rect(players[0].position, players[0].size);
 	SDL_RenderFillRect(renderer, &player_rect);
+}
+
+void Game::game_handle_events()
+{
+	if (event.type == SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE && event.type == SDL_KEYDOWN) {
+		cout << "Disconnected!" << endl;
+		connected = false;
+		return;
+	}
+	if (event.type == SDL_KEYDOWN) {
+		if (event.key.keysym.sym == SDLK_UP) {
+			//std::cout << "UP" << std::endl;
+			key_input.up = true;
+		}
+		if (event.key.keysym.sym == SDLK_DOWN) {
+			//std::cout << "DOWN" << std::endl;
+			key_input.down = true;
+		}
+		if (event.key.keysym.sym == SDLK_LEFT) {
+			//std::cout << "LEFT" << std::endl;
+			key_input.left = true;
+		}
+		if (event.key.keysym.sym == SDLK_RIGHT) {
+			//std::cout << "RIGHT" << std::endl;
+			key_input.right = true;
+		}
+	}
 }
 
 void Game::draw_text(TI pos, char text[], SDL_Color color)

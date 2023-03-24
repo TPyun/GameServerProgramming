@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
 #include <unordered_map>
-#include "Player.h"
 #include <mutex>
+#include "Player.h"
 
 class Game
 {
@@ -10,14 +10,15 @@ public:
 	Game();
 	~Game();
 
-	void handle_events();
 	void update();
 	void render();
 	void clear();
 
 	bool get_running() { return isRunning; }
 	void draw_main();
+	void main_handle_events();
 	void draw_game();
+	void game_handle_events();
 	void draw_text(TI, char[], SDL_Color);
 	SDL_Rect get_rect(TI, TI);
 
@@ -30,6 +31,7 @@ public:
 	char ip_address[100] = "127.0.0.1";
 	char Port[100] = "9000";
 	bool try_connect = false;
+	bool connected = false;
 	char scene{};
 
 private:

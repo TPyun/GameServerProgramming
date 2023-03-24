@@ -1,77 +1,3 @@
-//#pragma once
-//#include "Game.h"
-//
-//using namespace std;
-//const short SERVER_PORT = 9000;
-//
-//int main()
-//{
-//	Game* game = new Game();
-//
-//	WSADATA WSAData;
-//	WSAStartup(MAKEWORD(2, 0), &WSAData);
-//	SOCKET s_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
-//	SOCKADDR_IN server_addr;
-//	ZeroMemory(&server_addr, sizeof(server_addr));
-//	server_addr.sin_family = AF_INET;
-//	server_addr.sin_port = htons(SERVER_PORT);
-//	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-//	bind(s_socket, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr));
-//	listen(s_socket, SOMAXCONN);
-//	INT addr_size = sizeof(server_addr);
-//	
-//	cout << "Port: " << SERVER_PORT << endl; 
-//	
-//	for (;;) {
-//		cout << "Waiting for Client" << endl;
-//
-//		SOCKET c_socket = WSAAccept(s_socket, reinterpret_cast<sockaddr*>(&server_addr), &addr_size, 0, 0);
-//		cout << "Client connected" << endl;
-//
-//		WSABUF send_buff;
-//		DWORD sent_byte;
-//		send_buff.buf = (char*)&game->player->position;
-//		send_buff.len = sizeof(game->player->position);
-//		WSASend(c_socket, &send_buff, 1, &sent_byte, 0, 0, 0);
-//		
-//		if (sent_byte == 0) {
-//			cout << "Client Disconnected" << endl;
-//			continue;
-//		}
-//
-//		for (;;) {
-//			WSABUF recv_buff{};
-//			DWORD recv_byte{};
-//			DWORD recv_flag = 0;
-//			recv_buff.buf = (char*)&game->key_input;
-//			recv_buff.len = sizeof(game->key_input);
-//			WSARecv(c_socket, &recv_buff, 1, &recv_byte, &recv_flag, 0, 0);
-//			
-//			if (recv_byte == SOCKET_ERROR || recv_byte == 0) {
-//				cout << "Client Disconnected" << endl;
-//				break;
-//			}
-//			
-//			game->update();
-//
-//			WSABUF send_buff;
-//			DWORD sent_byte;
-//			send_buff.buf = (char*)&game->player->position;
-//			send_buff.len = sizeof(game->player->position);
-//			WSASend(c_socket, &send_buff, 1, &sent_byte, 0, 0, 0);
-//			
-//			if (sent_byte == SOCKET_ERROR || sent_byte == 0) {
-//				cout << "Client Disconnected" << endl;
-//				break;
-//			}
-//
-//			Sleep(10);
-//		}
-//	}
-//	WSACleanup();
-//	delete game;
-//}
-
 #include <iostream>
 #include <unordered_map>
 #include <random>
@@ -86,6 +12,7 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_ove
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
 void delete_session(int);
 TI randomly_spawn_player();
+void error_handling(int);
 
 class PACKET {
 public:
@@ -93,6 +20,7 @@ public:
 	int root_client_id;
 	WSABUF send_wsa_buf;
 	char send_data[BUFSIZE];
+	INT64 in[100000];
 	
 	PACKET(int client_id, int root_client_id, TI data) : root_client_id(root_client_id)
 	{
@@ -137,23 +65,32 @@ public:
 	}
 	
 	~SESSION() { closesocket(socket); }
-	
-	void do_recv() {
+
+	bool do_recv() {
 		DWORD recv_flag = 0;
 		ZeroMemory(&recv_over, sizeof(recv_over));
 		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
-		//cout << "Recv client id " << client_id << endl;
 		
 		int retval = WSARecv(socket, &recv_wsa_buff, 1, 0, &recv_flag, &recv_over, recv_callback);
-		//cout << "Recv retval " << retval << endl;
+		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+			cout << "WSARecv() failed with error " << WSAGetLastError() << endl;
+			error_handling(client_id);
+			return 1;
+		}
+		return 0;
 	}
 	
-	void do_send(int root_client_id, TI data) {
-		//cout << "DO SEND " << client_id << endl;
+	bool do_send(int root_client_id, TI data) {
 		PACKET* exp_over = new PACKET{ client_id, root_client_id, data };
 		
 		int retval = WSASend(socket, &exp_over->send_wsa_buf, 1, 0, 0, &exp_over->send_over, send_callback);
-		//cout << "Send retval " << retval << endl;
+		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+			cout << "WSASend() failed with error " << WSAGetLastError() << endl;
+			error_handling(client_id);
+			delete exp_over;
+			return 1;
+		}
+		return 0;
 	}
 };
 
@@ -162,52 +99,49 @@ unordered_map <int, SESSION> clients;
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag)
 {
 	PACKET* exp_over = reinterpret_cast<PACKET*>(send_over);	//PACKET 클래스의 첫번째 변수 주소를 가지고 PACKET 클래스 포인터를 찾음
-	int client_id = reinterpret_cast<int>(exp_over->send_over.hEvent);
-	
-	//Send Error Handling
-	if (err != 0) {
-		cout << "Send Callback Error " << err << endl;
-		delete_session(client_id);
-	}
-
-	//cout << "send_callback: " << client_id << endl;
+	int sent_client_id = reinterpret_cast<int>(exp_over->send_over.hEvent);
 	delete exp_over;
+
+	if (err != 0) {
+		cout << "Send Callback Error " << err << " Client_ID: " << sent_client_id << endl;
+		error_handling(sent_client_id);
+		return;
+	}
 }
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag)	
 {
-	int root_client_id = reinterpret_cast<int>(recv_over->hEvent);
+	int client_id = reinterpret_cast<int>(recv_over->hEvent);
 
-	//Recv Error Handling
 	if (err != 0) {
-		cout << "recv_callback Error: " << err << " Client_ID: " << (int)recv_over->hEvent << endl;
-		cout << "Byte received: " << num_bytes << endl;
-		for (auto& client : clients) {
-			if (client.first == root_client_id) continue;
-			cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
-			client.second.do_send(root_client_id, TI{ -1, -1 });
-		}
-		delete_session(root_client_id);
+		cout << "Recv Callback Error: " << err << " Client_ID: " << client_id << endl;
+		error_handling(client_id);
 		return;
 	}
-	
-	//recv하고나서 클라한테 받은 데이터 적용
-	//cout << "recv_callback: " << root_client_id << endl;
-	clients[root_client_id].player.key_check();
 
-	//모든 클라한테 데이터 전송
-	for (auto& client : clients) {
+	clients[client_id].player.key_check();
+	for (auto& client : clients) {	//모든 클라한테 데이터 전송
 		//cout << "SEND TO " << client.first << " FROM " << root_client_id << endl;
-		client.second.do_send(root_client_id, clients[root_client_id].player.position);
+		if (client.second.do_send(client_id, clients[client_id].player.position)) return;
 	}
 	
-	clients[root_client_id].do_recv();
+	if (clients[client_id].do_recv()) return;
 }
 
 void delete_session(int client_id) 
 {
 	cout << "DELETE SESSION: " << client_id << endl;
 	clients.erase(client_id);
+}
+
+void error_handling(int client_id)
+{
+	cout << "ERROR HANDLING: " << client_id << endl;
+	for (auto& client : clients) {
+		if (client.first == client_id) continue;
+		client.second.do_send(client_id, TI{ -1, -1 });
+	}
+	delete_session(client_id);
 }
 
 TI randomly_spawn_player()

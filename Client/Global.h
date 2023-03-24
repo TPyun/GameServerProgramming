@@ -18,7 +18,7 @@ typedef struct two_ints {
 typedef struct two_floats {
 	float x;
 	float y;
-}TF;
+} TF;
 
 typedef struct key_state {
 	bool up;
