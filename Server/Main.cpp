@@ -20,7 +20,6 @@ public:
 	int root_client_id;
 	WSABUF send_wsa_buf;
 	char send_data[BUFSIZE];
-	INT64 in[100000];
 	
 	PACKET(int client_id, int root_client_id, TI data) : root_client_id(root_client_id)
 	{
@@ -49,7 +48,7 @@ private:
 	SOCKET socket;
 	WSAOVERLAPPED recv_over;
 	int client_id;
-	
+
 public:
 	WSABUF recv_wsa_buff;
 	Player player{ randomly_spawn_player(), client_id };
@@ -64,7 +63,9 @@ public:
 		recv_wsa_buff.len = sizeof(player.key_input);
 	}
 	
-	~SESSION() { closesocket(socket); }
+	~SESSION() { 
+		closesocket(socket);
+	}
 
 	bool do_recv() {
 		DWORD recv_flag = 0;
