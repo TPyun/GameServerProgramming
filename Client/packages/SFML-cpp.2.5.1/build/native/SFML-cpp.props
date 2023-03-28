@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="15.0">
+  <ItemGroup>
+    <SFML-cppLibs Include="$(MSBuildThisFileDirectory)\lib\$(Platform)\$(Configuration)\*.lib" />
+    <SFML-cppIncl Include="$(MSBuildThisFileDirectory)include" />
+  </ItemGroup>
+  <PropertyGroup>
+    <!-- Expland the items to a property -->
+    <SFML-cppLibraries>@(SFML-cppLibs)</SFML-cppLibraries>
+    <SFML-cppIncludes>@(SFML-cppIncl)</SFML-cppIncludes>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SFML-cppIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>SFML_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>winmm.lib;gdi32.lib;ws2_32.lib;opengl32.lib;$(SFML-cppLibraries);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

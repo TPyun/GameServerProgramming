@@ -9,7 +9,7 @@ class Game
 public:
 	Game();
 	~Game();
-
+	
 	void update();
 	void render();
 	void clear();
@@ -19,12 +19,9 @@ public:
 	void main_handle_events();
 	void draw_game();
 	void game_handle_events();
-	void draw_text(TI, char[], SDL_Color);
-	SDL_Rect get_rect(TI, TI);
 
 	//ingame scene
 	KS key_input{ false, false, false, false };
-	//Player* player = new Player(TI{ 0, 0 });
 	std::unordered_map <int, Player> players;
 	std::mutex mtx;
 
@@ -34,13 +31,18 @@ public:
 	bool connected = false;
 	char scene{};
 
+	void draw_sfml_text(TI, char[], sf::Color);
+	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
+	TI sfml_get_corrected_position(TI, TI);
 private:
-	SDL_Window* window;
-	SDL_Renderer* renderer;
-	SDL_Event event{};
+	sf::RenderWindow* sfml_window;
+	sf::Font sfml_font;
+	sf::Event sfml_event{};
+	sf::Text sfml_text;
+
 	TI window_size{ WIDTH, HEIGHT };
+
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
-	TTF_Font* font;
 	bool isRunning = true;
 	
 	//main scene

@@ -1,10 +1,10 @@
 #pragma once
+#include <SFML/Graphics.hpp>
+#include <SFML/Network.hpp>
 #include <iostream>
 #include <WS2tcpip.h>
-#include "SDL.h"
-#include "SDL_image.h"
-#include "SDL_mixer.h"
-#include "SDL_ttf.h"
+
+#pragma comment(lib, "opengl32.lib")
 #pragma comment (lib, "WS2_32.LIB")
 
 #define WIDTH 800
