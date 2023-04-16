@@ -1,4 +1,6 @@
 #pragma once
+#include <SFML/Graphics.hpp>
+#include <SFML/Network.hpp>
 #include <string>
 #include <unordered_map>
 #include <mutex>

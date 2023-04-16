@@ -19,8 +19,11 @@ void send()
 	if (!game->connected) return;
 	Sleep(50);
 
-	send_wsa_buffer.buf = (char*)&game->key_input;
-	send_wsa_buffer.len = sizeof(KS);
+	cout << "send" << endl;
+	CS_MOVE_PACKET packet;
+	packet.ks = game->key_input;
+	send_wsa_buffer.buf = (char*)&packet;
+	send_wsa_buffer.len = sizeof(packet);
 	memset(&over, 0, sizeof(over));
 	
 	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &over, send_callback);
@@ -34,6 +37,8 @@ void send()
 
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD flags)
 {
+	cout << "recving" << endl;
+
 	if (err != 0) {
 		game->connected = false;
 		return;
@@ -42,10 +47,13 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 	//cout << "Recv: " << num_bytes << endl;
 	char* packet = recv_buffer;
 	while (packet < recv_buffer + num_bytes) {		//패킷 까기
-		char packet_size = *packet;
+		/*char packet_size = *packet;
 		char client_id = *(packet + 1);
-		memcpy(&game->players[client_id], (packet + 2), sizeof(TI));		//클래스 변수 첫번째가 position
-		
+		memcpy(&game->players[client_id], (packet + 2), sizeof(TI));		*///클래스 변수 첫번째가 position
+		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->players[client_id].position = recv_packet->position;
+		unsigned char packet_size = recv_packet->size;
 		TI player_out_location{ -1, -1 };
 		if (!memcmp(&game->players[client_id].position, &player_out_location, sizeof(TI))) {
 			game->mtx.lock();
@@ -73,6 +81,7 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 	DWORD recv_flag = 0;
 	memset(over, 0, sizeof(*over));
 	
+	cout << "recv" << endl;
 	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
 	//Recv Error Handling
 	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
@@ -80,6 +89,8 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
+	cout << "recved" << endl;
+
 }
 
 DWORD __stdcall process(LPVOID arg)

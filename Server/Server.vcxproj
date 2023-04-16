@@ -131,7 +131,7 @@
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Global.h" />
+    <ClInclude Include="..\Protocol.h" />
     <ClInclude Include="Player.h" />
   </ItemGroup>
   <ItemGroup>
