@@ -47,9 +47,6 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 	//cout << "Recv: " << num_bytes << endl;
 	char* packet = recv_buffer;
 	while (packet < recv_buffer + num_bytes) {		//패킷 까기
-		/*char packet_size = *packet;
-		char client_id = *(packet + 1);
-		memcpy(&game->players[client_id], (packet + 2), sizeof(TI));		*///클래스 변수 첫번째가 position
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
 		game->players[client_id].position = recv_packet->position;
