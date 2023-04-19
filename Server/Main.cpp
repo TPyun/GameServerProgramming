@@ -7,7 +7,7 @@ using namespace std;
 const short SERVER_PORT = 9000;
 const int BUFSIZE = 4000;
 
-
+//
 ////Overlapped IO
 //void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 //void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
@@ -27,8 +27,7 @@ const int BUFSIZE = 4000;
 //		ZeroMemory(&send_over, sizeof(send_over));
 //		send_over.hEvent = reinterpret_cast<HANDLE>(client_id);
 //		send_wsa_buf.len = packet[0];
-//		send_wsa_buf.buf = send_data;
-//		memcpy(send_data, packet, packet[0]);
+//		send_wsa_buf.buf = packet;
 //	}
 //
 //	~OVER_EXP() {}
@@ -59,6 +58,7 @@ const int BUFSIZE = 4000;
 //	}
 //
 //	bool do_recv() {
+//		cout << "do_recv() called\n";
 //		DWORD recv_flag = 0;
 //		ZeroMemory(&recv_over, sizeof(recv_over));
 //		recv_over.hEvent = reinterpret_cast<HANDLE>(client_id);
@@ -69,10 +69,12 @@ const int BUFSIZE = 4000;
 //			error_handling(client_id);
 //			return 1;
 //		}
+//		cout << "do_recv() finished\n";
 //		return 0;
 //	}
 //	
 //	bool do_send(char* packet) {
+//		cout << "do_send() called\n";
 //		OVER_EXP* exp_over = new OVER_EXP{ client_id, packet };
 //		
 //		int retval = WSASend(socket, &exp_over->send_wsa_buf, 1, 0, 0, &exp_over->send_over, send_callback);
@@ -105,6 +107,29 @@ const int BUFSIZE = 4000;
 //				send_packet.client_id = client_id;
 //			send_packet.position = this_client->player.position;
 //			if (client.second.do_send((char*)&send_packet)) return;
+//		}
+//		break;
+//	}
+//	case CS_LOGIN:
+//	{
+//		SESSION* this_client = &clients[client_id];
+//		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+//		for (auto& client : clients) {	//새로 들어온 클라에게 기존 애들 위치 전송
+//			SC_MOVE_PACKET packet_for_noob;
+//			if (client_id == client.first)
+//				packet_for_noob.client_id = 0;
+//			else
+//				packet_for_noob.client_id = client.first;
+//			packet_for_noob.position = client.second.player.position;
+//			if (this_client->do_send((char*) & packet_for_noob)) return;
+//		}
+//		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
+//			SC_MOVE_PACKET packet_for_old_players;
+//			if (client_id == client.first)
+//				continue;
+//			packet_for_old_players.client_id = client_id;
+//			packet_for_old_players.position = this_client->player.position;
+//			if (client.second.do_send((char*)&packet_for_old_players)) return;
 //		}
 //		break;
 //	}
@@ -210,8 +235,11 @@ const int BUFSIZE = 4000;
 //	closesocket(server_socket);
 //	WSACleanup();
 //}
+//
 
 
+
+//
 ////IOCP SINGLE THREAD
 //void delete_session(int);
 //TI randomly_spawn_player();
@@ -238,11 +266,9 @@ const int BUFSIZE = 4000;
 //	OVER_EXP(char* packet)	//Send
 //	{
 //		ZeroMemory(&over, sizeof(over));
-//		ZeroMemory(data, sizeof(data));
-//		wsa_buf.buf = data;
+//		wsa_buf.buf = packet;
 //		wsa_buf.len = packet[0];
 //		completion_type = OP_SEND;
-//		memcpy(data, packet, packet[0]);
 //	}
 //
 //	~OVER_EXP() {}
@@ -276,7 +302,7 @@ const int BUFSIZE = 4000;
 //		DWORD recv_flag = 0;
 //		memset(&recv_over.over, 0, sizeof(recv_over.over));
 //		recv_over.wsa_buf.len = BUFSIZE - _prev_remain;
-//		recv_over.wsa_buf.buf = recv_over.data + _prev_remain;
+//		recv_over.wsa_buf.buf = recv_over.data;
 //		int retval = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag,&recv_over.over, 0);
 //		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 //			cout << "WSARecv() failed with error " << WSAGetLastError() << endl;
@@ -370,6 +396,29 @@ const int BUFSIZE = 4000;
 //		}
 //		break;
 //	}
+//	case CS_LOGIN:
+//	{
+//		SESSION* this_client = &clients[client_id];
+//		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+//		for (auto& client : clients) {	//새로 들어온 클라에게 기존 애들 위치 전송
+//			SC_MOVE_PACKET packet_for_noob;
+//			if (client_id == client.first)
+//				packet_for_noob.client_id = 0;
+//			else
+//				packet_for_noob.client_id = client.first;
+//			packet_for_noob.position = client.second.player.position;
+//			if (this_client->do_send(&packet_for_noob)) return;
+//		}
+//		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
+//			SC_MOVE_PACKET packet_for_old_players;
+//			if (client_id == client.first)
+//				continue;
+//			packet_for_old_players.client_id = client_id;
+//			packet_for_old_players.position = this_client->player.position;
+//			if (client.second.do_send(&packet_for_old_players)) return;
+//		}
+//		break;
+//	}
 //	}
 //}
 //
@@ -459,9 +508,14 @@ const int BUFSIZE = 4000;
 //	closesocket(server_socket);
 //	WSACleanup();
 //}
+//
+
+
+
+
+
 
 //ICOP Multi Thiread 
-//IOCP SINGLE THREAD
 void delete_session(int);
 TI randomly_spawn_player();
 void disconnect(int);
@@ -477,7 +531,6 @@ public:
 
 	OVER_EXP()				//Recv
 	{
-		ZeroMemory(&over, sizeof(over));
 		ZeroMemory(data, sizeof(data));
 		wsa_buf.buf = data;
 		wsa_buf.len = BUFSIZE;
@@ -487,11 +540,9 @@ public:
 	OVER_EXP(char* packet)	//Send
 	{
 		ZeroMemory(&over, sizeof(over));
-		ZeroMemory(data, sizeof(data));
-		wsa_buf.buf = data;
+		wsa_buf.buf = packet;
 		wsa_buf.len = packet[0];
 		completion_type = OP_SEND;
-		memcpy(data, packet, packet[0]);
 	}
 
 	~OVER_EXP() {}
@@ -526,12 +577,13 @@ public:
 	}
 
 	bool do_recv() {
+		cout << client_id << " recv\n";
 		DWORD recv_flag = 0;
 		memset(&recv_over.over, 0, sizeof(recv_over.over));
 		recv_over.wsa_buf.len = BUFSIZE - _prev_remain;
-		recv_over.wsa_buf.buf = recv_over.data + _prev_remain;
+		recv_over.wsa_buf.buf = recv_over.data;
 		int retval = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag, &recv_over.over, 0);
-		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+		if (retval == 0 && WSAGetLastError() != WSA_IO_PENDING) {
 			cout << "WSARecv() failed with error " << WSAGetLastError() << endl;
 			disconnect(client_id);
 			return 1;
@@ -540,9 +592,12 @@ public:
 	}
 
 	bool do_send(void* packet) {
+		cout << client_id << " send\n";
 		OVER_EXP* send_over = new OVER_EXP{ reinterpret_cast<char*>(packet) };
 
 		int retval = WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->over, 0);
+		cout << retval << endl;
+
 		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 			cout << "WSASend() failed with error " << WSAGetLastError() << endl;
 			disconnect(client_id);
@@ -620,6 +675,29 @@ void process_packet(int client_id, char* packet)
 				send_packet.client_id = client_id;
 			send_packet.position = this_client->player.position;
 			if (client.second.do_send(&send_packet)) return;
+		}
+		break;
+	}
+	case CS_LOGIN:
+	{
+		SESSION* this_client = &clients[client_id];
+		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+		for (auto& client : clients) {	//새로 들어온 클라에게 기존 애들 위치 전송
+			SC_MOVE_PACKET packet_for_noob;
+			if (client_id == client.first)
+				packet_for_noob.client_id = 0;
+			else
+				packet_for_noob.client_id = client.first;
+			packet_for_noob.position = client.second.player.position;
+			if (this_client->do_send(&packet_for_noob)) return;
+		}
+		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
+			SC_MOVE_PACKET packet_for_old_players;
+			if (client_id == client.first)
+				continue;
+			packet_for_old_players.client_id = client_id;
+			packet_for_old_players.position = this_client->player.position;
+			if (client.second.do_send(&packet_for_old_players)) return;
 		}
 		break;
 	}

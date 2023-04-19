@@ -9,6 +9,7 @@
 #define WIDTH 800
 #define HEIGHT 800
 
+#define CS_LOGIN 0
 #define SC_MOVE 1
 #define CS_MOVE 2
 
@@ -28,6 +29,11 @@ typedef struct key_state {
 	bool left;
 	bool right;
 } KS;
+
+struct CS_LOGIN_PACKET {
+	unsigned char size = sizeof(CS_LOGIN_PACKET);
+	unsigned char type = CS_LOGIN;
+};
 
 struct SC_MOVE_PACKET {
 	unsigned char size = sizeof(SC_MOVE_PACKET);

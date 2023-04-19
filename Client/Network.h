@@ -6,25 +6,28 @@ using namespace std;
 
 Game* game;
 SOCKET server_socket;
-WSAOVERLAPPED over;
 WSABUF send_wsa_buffer;
 WSABUF recv_wsa_buffer;
+WSAOVERLAPPED over;
 constexpr int BUF_SIZE = 1000;
 char recv_buffer[BUF_SIZE];
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
+void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 
-void send()
+void send(char* packet)
 {
 	if (!game->connected) return;
-	Sleep(50);
-
+	Sleep(1);
 	cout << "send" << endl;
-	CS_MOVE_PACKET packet;
+	
+	/*CS_MOVE_PACKET packet;
 	packet.ks = game->key_input;
 	send_wsa_buffer.buf = (char*)&packet;
-	send_wsa_buffer.len = sizeof(packet);
-	memset(&over, 0, sizeof(over));
+	send_wsa_buffer.len = sizeof(packet);*/
+
+	send_wsa_buffer.buf = packet;
+	send_wsa_buffer.len = packet[0];
 	
 	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &over, send_callback);
 	//Send Error Handling
@@ -35,16 +38,30 @@ void send()
 	}
 }
 
-void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD flags)
+void recv()
 {
-	cout << "recving" << endl;
+	recv_wsa_buffer.buf = recv_buffer;
+	recv_wsa_buffer.len = BUF_SIZE;
 
+	DWORD recv_flag = 0;
+
+	cout << "recv" << endl;
+	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &over, recv_callback);
+	//Recv Error Handling
+	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
+		game->connected = false;
+		return;
+	}
+}
+
+void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
+{
 	if (err != 0) {
 		game->connected = false;
 		return;
 	}
 	
-	//cout << "Recv: " << num_bytes << endl;
 	char* packet = recv_buffer;
 	while (packet < recv_buffer + num_bytes) {		//패킷 까기
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
@@ -59,7 +76,7 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 		}
 		packet += packet_size;
 	}
-	send();
+	recv();
 }
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
@@ -71,23 +88,6 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 	
 	//cout << "Send: " << num_bytes << endl;
 	ZeroMemory(&game->key_input, sizeof(KS));		//전송 후 키입력 초기화
-	
-	recv_wsa_buffer.buf = recv_buffer;
-	recv_wsa_buffer.len = BUF_SIZE;
-
-	DWORD recv_flag = 0;
-	memset(over, 0, sizeof(*over));
-	
-	cout << "recv" << endl;
-	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
-	//Recv Error Handling
-	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
-		game->connected = false;
-		return;
-	}
-	cout << "recved" << endl;
-
 }
 
 DWORD __stdcall process(LPVOID arg)
@@ -103,7 +103,7 @@ DWORD __stdcall process(LPVOID arg)
 
 		WSADATA WSAData;
 		WSAStartup(MAKEWORD(2, 0), &WSAData);
-		server_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
+		server_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, WSA_FLAG_OVERLAPPED);
 		SOCKADDR_IN server_address;
 		ZeroMemory(&server_address, sizeof(server_address));
 		server_address.sin_family = AF_INET;
@@ -124,9 +124,16 @@ DWORD __stdcall process(LPVOID arg)
 		cout << "Connected to server" << endl;
 		game->connected = true;
 
-		send();
+		CS_LOGIN_PACKET login_packet;
+		send((char*)&login_packet);
+		recv();
 		game->scene = 1;
 		while (game->get_running() && game->connected) {
+			if (game->key_input.up || game->key_input.down || game->key_input.left || game->key_input.right) {
+				CS_MOVE_PACKET move_packet;
+				move_packet.ks = game->key_input;
+				send((char*)&move_packet);
+			}
 			SleepEx(10, true);
 		}
 		
