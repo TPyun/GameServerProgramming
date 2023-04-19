@@ -13,13 +13,11 @@ constexpr int BUF_SIZE = 1000;
 char recv_buffer[BUF_SIZE];
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
-void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
-
 
 void send()
 {
 	if (!game->connected) return;
-	Sleep(30);
+	Sleep(50);
 
 	cout << "send" << endl;
 	CS_MOVE_PACKET packet;
@@ -37,37 +35,6 @@ void send()
 	}
 }
 
-void recv()
-{
-	if (!game->connected) return;
-
-	recv_wsa_buffer.buf = recv_buffer;
-	recv_wsa_buffer.len = BUF_SIZE;
-
-	DWORD recv_flag = 0;
-	memset(&over, 0, sizeof(over));
-
-	cout << "recv" << endl;
-	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &over, recv_callback);
-	//Recv Error Handling
-	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
-		game->connected = false;
-		return;
-	}
-	cout << "recved" << endl;
-}
-
-void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
-{
-	if (err != 0) {
-		game->connected = false;
-		return;
-	}
-
-	ZeroMemory(&game->key_input, sizeof(KS));		//전송 후 키입력 초기화
-}
-
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD flags)
 {
 	cout << "recving" << endl;
@@ -77,6 +44,7 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 		return;
 	}
 	
+	//cout << "Recv: " << num_bytes << endl;
 	char* packet = recv_buffer;
 	while (packet < recv_buffer + num_bytes) {		//패킷 까기
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
@@ -91,7 +59,35 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_ove
 		}
 		packet += packet_size;
 	}
-	recv();
+	send();
+}
+
+void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
+{
+	if (err != 0) {
+		game->connected = false;
+		return;
+	}
+	
+	//cout << "Send: " << num_bytes << endl;
+	ZeroMemory(&game->key_input, sizeof(KS));		//전송 후 키입력 초기화
+	
+	recv_wsa_buffer.buf = recv_buffer;
+	recv_wsa_buffer.len = BUF_SIZE;
+
+	DWORD recv_flag = 0;
+	memset(over, 0, sizeof(*over));
+	
+	cout << "recv" << endl;
+	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, over, recv_callback);
+	//Recv Error Handling
+	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
+		game->connected = false;
+		return;
+	}
+	cout << "recved" << endl;
+
 }
 
 DWORD __stdcall process(LPVOID arg)
@@ -128,7 +124,7 @@ DWORD __stdcall process(LPVOID arg)
 		cout << "Connected to server" << endl;
 		game->connected = true;
 
-		recv();
+		send();
 		game->scene = 1;
 		while (game->get_running() && game->connected) {
 			SleepEx(10, true);
