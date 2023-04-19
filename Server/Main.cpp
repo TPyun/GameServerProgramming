@@ -460,8 +460,14 @@ const int BUFSIZE = 4000;
 //	WSACleanup();
 //}
 
+
+
+
+
+
+
+
 //ICOP Multi Thiread 
-//IOCP SINGLE THREAD
 void delete_session(int);
 TI randomly_spawn_player();
 void disconnect(int);
@@ -647,6 +653,7 @@ void work_thread(HANDLE h_iocp)
 		switch (ex_over->completion_type) {
 		case OP_ACCEPT: {
 			int client_id = get_new_client_id();
+			cout << client_id << " " << key << endl;
 			if (client_id != -1) {
 				clients.try_emplace(client_id, client_id, global_client_socket);
 
