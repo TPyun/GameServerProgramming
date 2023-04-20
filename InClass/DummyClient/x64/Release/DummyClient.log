@@ -1,0 +1,7 @@
+﻿  DrawModule.cpp
+  NetworkModule.cpp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 202 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  DummyClient.vcxproj -> G:\Code\GameServerProgramming\InClass\DummyClient\x64\Release\DummyClient.exe

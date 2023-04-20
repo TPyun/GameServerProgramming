@@ -1,1 +1,1 @@
-C:\Users\YTP\source\repos\GameServerInclass\client\x64\Release\GameServerInclass.exe
+G:\Code\GameServerProgramming\InClass\Client\x64\Release\Client.exe

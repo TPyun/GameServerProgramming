@@ -21,7 +21,6 @@ Game::~Game()
 	delete sfml_window;
 }
 
-
 void Game::update()
 {
 	bool input = sfml_window->pollEvent(sfml_event);

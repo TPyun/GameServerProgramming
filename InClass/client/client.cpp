@@ -69,6 +69,7 @@ public:
 		if (false == m_showing) return;
 		float rx = (m_x - g_left_x) * 65.0f + 1;
 		float ry = (m_y - g_top_y) * 65.0f + 1;
+		
 		m_sprite.setPosition(rx, ry);
 		g_window->draw(m_sprite);
 		auto size = m_name.getGlobalBounds();
@@ -105,7 +106,7 @@ void client_initialize()
 	white_tile = OBJECT{ *board, 5, 5, TILE_WIDTH, TILE_WIDTH };
 	black_tile = OBJECT{ *board, 69, 5, TILE_WIDTH, TILE_WIDTH };
 	avatar = OBJECT{ *pieces, 128, 0, 64, 64 };
-	avatar.move(4, 4);
+	avatar.move(8, 8);
 }
 
 void client_finish()
@@ -126,8 +127,8 @@ void ProcessPacket(char* ptr)
 		g_myid = packet->id;
 		avatar.m_x = packet->x;
 		avatar.m_y = packet->y;
-		g_left_x = packet->x - 4;
-		g_top_y = packet->y - 4;
+		g_left_x = packet->x - 8;
+		g_top_y = packet->y - 8;
 		avatar.show();
 	}
 	break;
@@ -139,8 +140,8 @@ void ProcessPacket(char* ptr)
 
 		if (id == g_myid) {
 			avatar.move(my_packet->x, my_packet->y);
-			g_left_x = my_packet->x - 4;
-			g_top_y = my_packet->y - 4;
+			g_left_x = my_packet->x - 8;
+			g_top_y = my_packet->y - 8;
 			avatar.show();
 		}
 		else if (id < MAX_USER) {
@@ -162,8 +163,8 @@ void ProcessPacket(char* ptr)
 		int other_id = my_packet->id;
 		if (other_id == g_myid) {
 			avatar.move(my_packet->x, my_packet->y);
-			g_left_x = my_packet->x - 4;
-			g_top_y = my_packet->y - 4;
+			g_left_x = my_packet->x - 8;
+			g_top_y = my_packet->y - 8;
 		}
 		else if (other_id < MAX_USER) {
 			players[other_id].move(my_packet->x, my_packet->y);
@@ -262,6 +263,16 @@ void client_main()
 	sprintf_s(buf, "(%d, %d)", avatar.m_x, avatar.m_y);
 	text.setString(buf);
 	g_window->draw(text);
+
+
+	//draw empty box
+	sf::RectangleShape rect(sf::Vector2f(TILE_WIDTH * 11, TILE_WIDTH * 11));
+	rect.setPosition(TILE_WIDTH * 3, TILE_WIDTH * 3);
+	rect.setOutlineThickness(5);
+	rect.setOutlineColor(sf::Color::Red);
+	rect.setFillColor(sf::Color::Transparent); // Set fill color to transparent
+	g_window->draw(rect);
+
 }
 
 void send_packet(void *packet)
@@ -271,74 +282,76 @@ void send_packet(void *packet)
 	s_socket.send(packet, p[0], sent);
 }
 
-//int main()
-//{
-//	wcout.imbue(locale("korean"));
-//	sf::Socket::Status status = s_socket.connect("127.0.0.1", PORT_NUM);
-//	s_socket.setBlocking(false);
-//
-//	if (status != sf::Socket::Done) {
-//		wcout << L"서버와 연결할 수 없습니다.\n";
-//		exit(-1);
-//	}
-//
-//	client_initialize();
-//	CS_LOGIN_PACKET p;
-//	p.size = sizeof(p);
-//	p.type = CS_LOGIN;
-//
-//	string player_name{ "P" };
-//	player_name += to_string(GetCurrentProcessId());
-//	
-//	strcpy_s(p.name, player_name.c_str());
-//	send_packet(&p);
-//	avatar.set_name(p.name);
-//
-//	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
-//	g_window = &window;
-//
-//	while (window.isOpen())
-//	{
-//		sf::Event event;
-//		while (window.pollEvent(event))
-//		{
-//			if (event.type == sf::Event::Closed)
-//				window.close();
-//			if (event.type == sf::Event::KeyPressed) {
-//				int direction = -1;
-//				switch (event.key.code) {
-//				case sf::Keyboard::Left:
-//					direction = 2;
-//					break;
-//				case sf::Keyboard::Right:
-//					direction = 3;
-//					break;
-//				case sf::Keyboard::Up:
-//					direction = 0;
-//					break;
-//				case sf::Keyboard::Down:
-//					direction = 1;
-//					break;
-//				case sf::Keyboard::Escape:
-//					window.close();
-//					break;
-//				}
-//				if (-1 != direction) {
-//					CS_MOVE_PACKET p;
-//					p.size = sizeof(p);
-//					p.type = CS_MOVE;
-//					p.direction = direction;
-//					send_packet(&p);
-//				}
-//
-//			}
-//		}
-//
-//		window.clear();
-//		client_main();
-//		window.display();
-//	}
-//	client_finish();
-//
-//	return 0;
-//}
+int main()
+{
+	wcout.imbue(locale("korean"));
+	sf::Socket::Status status = s_socket.connect("127.0.0.1", PORT_NUM);
+	//sf::Socket::Status status = s_socket.connect("192.168.0.8", PORT_NUM);
+
+	s_socket.setBlocking(false);
+
+	if (status != sf::Socket::Done) {
+		wcout << L"서버와 연결할 수 없습니다.\n";
+		exit(-1);
+	}
+
+	client_initialize();
+	CS_LOGIN_PACKET p;
+	p.size = sizeof(p);
+	p.type = CS_LOGIN;
+
+	string player_name{ "P" };
+	player_name += to_string(GetCurrentProcessId());
+	
+	strcpy_s(p.name, player_name.c_str());
+	send_packet(&p);
+	avatar.set_name(p.name);
+
+	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
+	g_window = &window;
+
+	while (window.isOpen())
+	{
+		sf::Event event;
+		while (window.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window.close();
+			if (event.type == sf::Event::KeyPressed) {
+				int direction = -1;
+				switch (event.key.code) {
+				case sf::Keyboard::Left:
+					direction = 2;
+					break;
+				case sf::Keyboard::Right:
+					direction = 3;
+					break;
+				case sf::Keyboard::Up:
+					direction = 0;
+					break;
+				case sf::Keyboard::Down:
+					direction = 1;
+					break;
+				case sf::Keyboard::Escape:
+					window.close();
+					break;
+				}
+				if (-1 != direction) {
+					CS_MOVE_PACKET p;
+					p.size = sizeof(p);
+					p.type = CS_MOVE;
+					p.direction = direction;
+					send_packet(&p);
+				}
+
+			}
+		}
+
+		window.clear();
+		client_main();
+		window.display();
+	}
+	client_finish();
+
+	return 0;
+}

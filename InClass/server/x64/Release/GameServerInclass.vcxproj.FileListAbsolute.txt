@@ -1,1 +1,2 @@
 C:\Users\YTP\source\repos\GameServerInclass\server\x64\Release\GameServerInclass.exe
+G:\Code\GameServerProgramming\InClass\Server\x64\Release\Server.exe
