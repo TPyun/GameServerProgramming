@@ -146,14 +146,14 @@ void Game::draw_game()
 	sf::Color color;
 	mtx.lock();
 	for (auto& player : players) {
-		if (player.first == 0)
+		if (player.first == my_id)
 			continue;
 		color = sf::Color(200, 0, 0);
 		draw_sfml_rect(sfml_get_corrected_position(player.second.position, player.second.size), player.second.size, color, color);
 	}
 	mtx.unlock();
 	color = sf::Color(0, 0, 0);
-	draw_sfml_rect(sfml_get_corrected_position(players[0].position, players[0].size), players[0].size, color, color);
+	draw_sfml_rect(sfml_get_corrected_position(players[my_id].position, players[my_id].size), players[my_id].size, color, color);
 }
 
 void Game::game_handle_events()

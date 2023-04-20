@@ -6,8 +6,10 @@ using namespace std;
 
 const short SERVER_PORT = 9000;
 const int BUFSIZE = 4000;
+unsigned short MAP_SIZE = 400;
 
-//
+
+
 ////Overlapped IO
 //void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED send_over, DWORD recv_flag);
 //void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD recv_flag);
@@ -174,10 +176,9 @@ const int BUFSIZE = 4000;
 //	cout << "ERROR HANDLING: " << client_id << endl;
 //	for (auto& client : clients) {
 //		if (client.first == client_id) continue;
-//		SC_MOVE_PACKET send_packet;
-//		send_packet.client_id = client_id;
-//		send_packet.position = TI{ -1, -1 };
-//		client.second.do_send((char*)&send_packet);
+//		SC_OUT_PACKET out_packet;
+//		out_packet.client_id = client_id;
+//		client.second.do_send((char*)&out_packet);
 //	}
 //	delete_session(client_id);
 //}
@@ -236,10 +237,14 @@ const int BUFSIZE = 4000;
 //	WSACleanup();
 //}
 //
-
-
-
 //
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////IOCP SINGLE THREAD
 //void delete_session(int);
 //TI randomly_spawn_player();
@@ -282,7 +287,7 @@ const int BUFSIZE = 4000;
 //	int client_id{};
 //
 //public:
-//	int	_prev_remain{};
+//	int	remain_data{};
 //	Player player{ randomly_spawn_player(), client_id };
 //
 //	SESSION() {
@@ -301,8 +306,8 @@ const int BUFSIZE = 4000;
 //	bool do_recv() {
 //		DWORD recv_flag = 0;
 //		memset(&recv_over.over, 0, sizeof(recv_over.over));
-//		recv_over.wsa_buf.len = BUFSIZE - _prev_remain;
-//		recv_over.wsa_buf.buf = recv_over.data;
+//		recv_over.wsa_buf.len = BUFSIZE - remain_data;
+//		recv_over.wsa_buf.buf = recv_over.data + remain_data;;
 //		int retval = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag,&recv_over.over, 0);
 //		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 //			cout << "WSARecv() failed with error " << WSAGetLastError() << endl;
@@ -324,9 +329,36 @@ const int BUFSIZE = 4000;
 //		}
 //		return 0;
 //	}
+//	
+//	void send_login_packet();
+//	void send_move_packet(int);
+//	void send_out_packet(int);
 //};
 //
 //unordered_map <int, SESSION> clients;
+//
+//void SESSION::send_login_packet()
+//{
+//	SC_LOGIN_PACKET packet;
+//	packet.client_id = client_id;
+//	packet.position = player.position;
+//	do_send(&packet);
+//}
+//
+//void SESSION::send_move_packet(int client_id)
+//{
+//	SC_MOVE_PACKET packet;
+//	packet.client_id = client_id;
+//	packet.position = clients[client_id].player.position;
+//	do_send(&packet);
+//}
+//
+//void SESSION::send_out_packet(int client_id)
+//{
+//	SC_OUT_PACKET packet;
+//	packet.client_id = client_id;
+//	do_send(&packet);
+//}
 //
 //void delete_session(int client_id)
 //{
@@ -339,10 +371,9 @@ const int BUFSIZE = 4000;
 //	cout << "ERROR HANDLING: " << client_id << endl;
 //	for (auto& client : clients) {
 //		if (client.first == client_id) continue;
-//		SC_MOVE_PACKET packet;
-//		packet.client_id = client_id;
-//		packet.position = TI{ -1,-1 };
-//		client.second.do_send(&packet);
+//		SC_OUT_PACKET out_packet;
+//		out_packet.client_id = client_id;
+//		client.second.do_send(&out_packet);
 //	}
 //	delete_session(client_id);
 //}
@@ -386,13 +417,7 @@ const int BUFSIZE = 4000;
 //		memcpy(&this_client->player.key_input, &recv_packet->ks, sizeof(recv_packet->ks));
 //		this_client->player.key_check();
 //		for (auto& client : clients) {	//모든 클라한테 데이터 전송
-//			SC_MOVE_PACKET send_packet;
-//			if(client_id == client.first)
-//				send_packet.client_id = 0;
-//			else
-//				send_packet.client_id = client_id;
-//			send_packet.position = this_client->player.position;
-//			if (client.second.do_send(&send_packet)) return;
+//			client.second.send_move_packet(client_id);
 //		}
 //		break;
 //	}
@@ -400,22 +425,17 @@ const int BUFSIZE = 4000;
 //	{
 //		SESSION* this_client = &clients[client_id];
 //		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+//		
+//		this_client->send_login_packet();
 //		for (auto& client : clients) {	//새로 들어온 클라에게 기존 애들 위치 전송
-//			SC_MOVE_PACKET packet_for_noob;
-//			if (client_id == client.first)
-//				packet_for_noob.client_id = 0;
-//			else
-//				packet_for_noob.client_id = client.first;
-//			packet_for_noob.position = client.second.player.position;
-//			if (this_client->do_send(&packet_for_noob)) return;
-//		}
-//		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
-//			SC_MOVE_PACKET packet_for_old_players;
 //			if (client_id == client.first)
 //				continue;
-//			packet_for_old_players.client_id = client_id;
-//			packet_for_old_players.position = this_client->player.position;
-//			if (client.second.do_send(&packet_for_old_players)) return;
+//			this_client->send_move_packet(client.first);
+//		}
+//		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
+//			if (client_id == client.first)
+//				continue;
+//			client.second.send_move_packet(client_id);
 //		}
 //		break;
 //	}
@@ -480,7 +500,7 @@ const int BUFSIZE = 4000;
 //			break;
 //		}
 //		case OP_RECV: {
-//			int data_to_proccess = num_bytes + clients[key]._prev_remain;
+//			int data_to_proccess = num_bytes + clients[key].remain_data;
 //			char* p = ex_over->data;
 //			while (data_to_proccess > 0) {
 //				int packet_size = p[0];
@@ -491,7 +511,7 @@ const int BUFSIZE = 4000;
 //				}
 //				else break;
 //			}
-//			clients[key]._prev_remain = data_to_proccess;
+//			clients[key].remain_data = data_to_proccess;
 //			if (data_to_proccess > 0) {
 //				memcpy(ex_over->data, p, data_to_proccess);
 //			}
@@ -508,12 +528,20 @@ const int BUFSIZE = 4000;
 //	closesocket(server_socket);
 //	WSACleanup();
 //}
-//
 
 
 
 
 
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //ICOP Multi Thiread 
 void delete_session(int);
@@ -560,7 +588,7 @@ private:
 	int client_id{};
 
 public:
-	int	_prev_remain{};
+	int	remain_data{};
 	Player player{ randomly_spawn_player(), client_id };
 
 	SESSION() {
@@ -580,8 +608,8 @@ public:
 		cout << client_id << " recv\n";
 		DWORD recv_flag = 0;
 		memset(&recv_over.over, 0, sizeof(recv_over.over));
-		recv_over.wsa_buf.len = BUFSIZE - _prev_remain;
-		recv_over.wsa_buf.buf = recv_over.data;
+		recv_over.wsa_buf.len = BUFSIZE - remain_data;
+		recv_over.wsa_buf.buf = recv_over.data + remain_data;
 		int retval = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag, &recv_over.over, 0);
 		if (retval == 0 && WSAGetLastError() != WSA_IO_PENDING) {
 			cout << "WSARecv() failed with error " << WSAGetLastError() << endl;
@@ -606,9 +634,35 @@ public:
 		}
 		return 0;
 	}
+	void send_login_packet();
+	void send_move_packet(int);
+	void send_out_packet(int);
 };
 
 unordered_map <int, SESSION> clients;
+
+void SESSION::send_login_packet()
+{
+	SC_LOGIN_PACKET packet;
+	packet.client_id = client_id;
+	packet.position = player.position;
+	do_send(&packet);
+}
+
+void SESSION::send_move_packet(int client_id)
+{
+	SC_MOVE_PACKET packet;
+	packet.client_id = client_id;
+	packet.position = clients[client_id].player.position;
+	do_send(&packet);
+}
+
+void SESSION::send_out_packet(int client_id)
+{
+	SC_OUT_PACKET packet;
+	packet.client_id = client_id;
+	do_send(&packet);
+}
 
 void delete_session(int client_id)
 {
@@ -621,10 +675,9 @@ void disconnect(int client_id)
 	cout << "ERROR HANDLING: " << client_id << endl;
 	for (auto& client : clients) {
 		if (client.first == client_id) continue;
-		SC_MOVE_PACKET packet;
-		packet.client_id = client_id;
-		packet.position = TI{ -1,-1 };
-		client.second.do_send(&packet);
+		SC_OUT_PACKET out_packet;
+		out_packet.client_id = client_id;
+		client.second.do_send(&out_packet);
 	}
 	delete_session(client_id);
 }
@@ -668,13 +721,7 @@ void process_packet(int client_id, char* packet)
 		memcpy(&this_client->player.key_input, &recv_packet->ks, sizeof(recv_packet->ks));
 		this_client->player.key_check();
 		for (auto& client : clients) {	//모든 클라한테 데이터 전송
-			SC_MOVE_PACKET send_packet;
-			if (client_id == client.first)
-				send_packet.client_id = 0;
-			else
-				send_packet.client_id = client_id;
-			send_packet.position = this_client->player.position;
-			if (client.second.do_send(&send_packet)) return;
+			client.second.send_move_packet(client_id);
 		}
 		break;
 	}
@@ -682,22 +729,17 @@ void process_packet(int client_id, char* packet)
 	{
 		SESSION* this_client = &clients[client_id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
+
+		this_client->send_login_packet();
 		for (auto& client : clients) {	//새로 들어온 클라에게 기존 애들 위치 전송
-			SC_MOVE_PACKET packet_for_noob;
-			if (client_id == client.first)
-				packet_for_noob.client_id = 0;
-			else
-				packet_for_noob.client_id = client.first;
-			packet_for_noob.position = client.second.player.position;
-			if (this_client->do_send(&packet_for_noob)) return;
-		}
-		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
-			SC_MOVE_PACKET packet_for_old_players;
 			if (client_id == client.first)
 				continue;
-			packet_for_old_players.client_id = client_id;
-			packet_for_old_players.position = this_client->player.position;
-			if (client.second.do_send(&packet_for_old_players)) return;
+			this_client->send_move_packet(client.first);
+		}
+		for (auto& client : clients) {	//모든 클라한테 새로온 애 위치 전송
+			if (client_id == client.first)
+				continue;
+			client.second.send_move_packet(client_id);
 		}
 		break;
 	}
@@ -741,7 +783,7 @@ void work_thread(HANDLE h_iocp)
 			break;
 		}
 		case OP_RECV: {
-			int data_to_proccess = num_bytes + clients[key]._prev_remain;
+			int data_to_proccess = num_bytes + clients[key].remain_data;
 			char* p = ex_over->data;
 			while (data_to_proccess > 0) {
 				int packet_size = p[0];
@@ -752,7 +794,7 @@ void work_thread(HANDLE h_iocp)
 				}
 				else break;
 			}
-			clients[key]._prev_remain = data_to_proccess;
+			clients[key].remain_data = data_to_proccess;
 			if (data_to_proccess > 0) {
 				memcpy(ex_over->data, p, data_to_proccess);
 			}
@@ -798,3 +840,4 @@ int main()
 	closesocket(global_server_socket);
 	WSACleanup();
 }
+

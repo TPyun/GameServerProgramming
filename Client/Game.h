@@ -32,6 +32,7 @@ public:
 	bool try_connect = false;
 	bool connected = false;
 	char scene{};
+	int my_id{};
 
 	void draw_sfml_text(TI, char[], sf::Color);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);

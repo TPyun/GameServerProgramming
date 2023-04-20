@@ -11,6 +11,7 @@ WSABUF recv_wsa_buffer;
 WSAOVERLAPPED over;
 constexpr int BUF_SIZE = 1000;
 char recv_buffer[BUF_SIZE];
+int remain_data{};
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
@@ -20,11 +21,6 @@ void send(char* packet)
 	if (!game->connected) return;
 	Sleep(1);
 	cout << "send" << endl;
-	
-	/*CS_MOVE_PACKET packet;
-	packet.ks = game->key_input;
-	send_wsa_buffer.buf = (char*)&packet;
-	send_wsa_buffer.len = sizeof(packet);*/
 
 	send_wsa_buffer.buf = packet;
 	send_wsa_buffer.len = packet[0];
@@ -40,8 +36,8 @@ void send(char* packet)
 
 void recv()
 {
-	recv_wsa_buffer.buf = recv_buffer;
-	recv_wsa_buffer.len = BUF_SIZE;
+	recv_wsa_buffer.buf = recv_buffer + remain_data;
+	recv_wsa_buffer.len = BUF_SIZE - remain_data;
 
 	DWORD recv_flag = 0;
 
@@ -55,6 +51,36 @@ void recv()
 	}
 }
 
+void process_packet(char* packet)
+{
+	switch (packet[1]) {
+	case SC_MOVE:
+	{
+		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->players[client_id].position = recv_packet->position;
+		break;
+	}
+	case SC_OUT:
+	{
+		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->mtx.lock();
+		game->players.erase(client_id);
+		game->mtx.unlock();
+		break;
+	}
+	case SC_LOGIN:
+	{
+		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		game->my_id = recv_packet->client_id;
+		game->players[game->my_id].position = recv_packet->position;
+		cout << "my id: " << game->my_id << endl;
+		break;
+	}
+	}
+}
+
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags)
 {
 	if (err != 0) {
@@ -62,20 +88,23 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		return;
 	}
 	
+	//패킷 잘리면 이어 붙이기
+	int data_to_proccess = num_bytes + remain_data;
 	char* packet = recv_buffer;
-	while (packet < recv_buffer + num_bytes) {		//패킷 까기
-		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->players[client_id].position = recv_packet->position;
-		unsigned char packet_size = recv_packet->size;
-		TI player_out_location{ -1, -1 };
-		if (!memcmp(&game->players[client_id].position, &player_out_location, sizeof(TI))) {
-			game->mtx.lock();
-			game->players.erase(client_id);
-			game->mtx.unlock();
+	while (data_to_proccess > 0) {
+		int packet_size = packet[0];
+		if (packet_size <= data_to_proccess) {
+			process_packet(packet);
+			packet += packet_size;
+			data_to_proccess -= packet_size;
 		}
-		packet += packet_size;
+		else break;
 	}
+	remain_data = data_to_proccess;
+	if (data_to_proccess > 0) {
+		memcpy(recv_buffer, packet, data_to_proccess);
+	}
+	
 	recv();
 }
 
