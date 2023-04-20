@@ -1,9 +1,0 @@
-﻿  client.cpp
-  소스.cpp
-  Generating code
-  Previous IPDB not found, fall back to full compilation.
-  All 364 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Finished generating code
-  GameServerInclass.vcxproj -> G:\Code\GameServerProgramming\InClass\Client\x64\Release\Client.exe
-  G:\Code\GameServerProgramming\InClass\Client\packages\SFML-cpp.redist.2.5.1.1\build\native\bin\x64\Release\openal32.dll
-  1개 파일이 복사되었습니다.

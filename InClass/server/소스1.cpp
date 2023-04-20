@@ -1252,6 +1252,7 @@ public:
 
 	concurrency::concurrent_unordered_set<int> _view_list;
 	mutex _vl;
+	
 public:
 	SESSION()
 	{
@@ -1473,14 +1474,7 @@ void process_packet(int c_id, char* packet)
 			clients[c_id]._view_list.insert(new_one);
 		clients[c_id]._vl.unlock();
 
-
-		/*for (auto& cl : clients) {
-			if (cl._state != ST_INGAME) continue;
-			cl.send_move_packet(c_id);
-
-		}*/
 		clients[c_id].send_move_packet(c_id);
-		
 	}
 	}
 }

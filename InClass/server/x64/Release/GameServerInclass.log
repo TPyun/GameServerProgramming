@@ -1,8 +1,0 @@
-﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(517,5): warning MSB8028: The intermediate directory (x64\Release\) contains files shared from another project (GameServerInclass.vcxproj).  This can lead to incorrect clean and rebuild behavior.
-  소스1.cpp
-  Generating code
-  276 of 415 functions (66.5%) were compiled, the rest were copied from previous compilation.
-    119 functions were new in current compilation
-    15 functions had inline decision re-evaluated but remain unchanged
-  Finished generating code
-  GameServerInclass.vcxproj -> G:\Code\GameServerProgramming\InClass\Server\x64\Release\Server.exe
