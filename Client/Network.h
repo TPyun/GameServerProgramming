@@ -8,8 +8,10 @@ Game* game;
 SOCKET server_socket;
 WSABUF send_wsa_buffer;
 WSABUF recv_wsa_buffer;
-WSAOVERLAPPED over;
-constexpr int BUF_SIZE = 1000;
+WSAOVERLAPPED send_over;
+WSAOVERLAPPED recv_over;
+
+constexpr int BUF_SIZE = 4000;
 char recv_buffer[BUF_SIZE];
 int remain_data{};
 
@@ -20,12 +22,12 @@ void send(char* packet)
 {
 	if (!game->connected) return;
 	Sleep(1);
-	cout << "send" << endl;
+	//cout << "send" << endl;
 
 	send_wsa_buffer.buf = packet;
 	send_wsa_buffer.len = packet[0];
 	
-	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &over, send_callback);
+	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &send_over, send_callback);
 	//Send Error Handling
 	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING){
 		cout << "WSASend failed with error: " << WSAGetLastError() << endl;
@@ -41,8 +43,8 @@ void recv()
 
 	DWORD recv_flag = 0;
 
-	cout << "recv" << endl;
-	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &over, recv_callback);
+	//cout << "recv" << endl;
+	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &recv_over, recv_callback);
 	//Recv Error Handling
 	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
@@ -58,7 +60,9 @@ void process_packet(char* packet)
 	{
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
-		game->players[client_id].position = recv_packet->position;
+		game->players[client_id].position.x = recv_packet->position.x;
+		game->players[client_id].position.y = recv_packet->position.y;
+		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 		break;
 	}
 	case SC_OUT:
@@ -68,16 +72,19 @@ void process_packet(char* packet)
 		game->mtx.lock();
 		game->players.erase(client_id);
 		game->mtx.unlock();
+		//cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
 	case SC_LOGIN:
 	{
 		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;
-		game->players[game->my_id].position = recv_packet->position;
-		cout << "my id: " << game->my_id << endl;
+		game->players[game->my_id].position.x = recv_packet->position.x;
+		game->players[game->my_id].position.y = recv_packet->position.y;
+		//cout << "my id: " << game->my_id << endl;
 		break;
 	}
+	default: cout << "Unknown Packet Type" << endl; break;
 	}
 }
 
@@ -87,8 +94,10 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
-	
 	//패킷 잘리면 이어 붙이기
+	if (remain_data) {
+		cout << "remain_data: " << remain_data << endl;
+	}
 	int data_to_proccess = num_bytes + remain_data;
 	char* packet = recv_buffer;
 	while (data_to_proccess > 0) {
@@ -166,7 +175,9 @@ DWORD __stdcall process(LPVOID arg)
 			SleepEx(10, true);
 		}
 		
+		game->mtx.lock();
 		game->players.clear();
+		game->mtx.unlock();
 		game->scene = 0;
 		closesocket(server_socket);
 		WSACleanup();

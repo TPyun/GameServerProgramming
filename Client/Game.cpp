@@ -120,24 +120,29 @@ void Game::main_handle_events()
 	}
 }
 
-TI Game::sfml_get_corrected_position(TI position, TI size)
+TI Game::get_relative_location(TI position, TI size)
 {
-	return TI{ position.x - size.x / 2, position.y - size.y / 2 };
+	return TI{ WIDTH / 2 + (position.x - players[my_id].position.x) * BLOCK_SIZE - size.x / 2 - 1, HEIGHT / 2 + (position.y - players[my_id].position.y) * BLOCK_SIZE - size.y / 2  - 1};
+	//return TI{ position.x - size.x / 2, position.y - size.y / 2 };
+
 }
 
 void Game::draw_game()
 {
 	//Ã¼½º ÆÇ
-	TI chess_board_pixel_size{ 100, 100 };
+	TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
 	TI chess_board_pixel_position;
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			chess_board_pixel_position.x = i * 100;
-			chess_board_pixel_position.y = j * 100;
+	for (int i = 0; i < DISTANCE; i++) {
+		for (int j = 0; j < DISTANCE; j++) {
+			chess_board_pixel_position.x = i * BLOCK_SIZE;
+			chess_board_pixel_position.y = j * BLOCK_SIZE;
 			sf::Color color(100, 50, 0);
-			if ((i + j) % 2 == 0) {
+			if ((players[my_id].position.x + i + players[my_id].position.y + j) % 2 == 0) {
 				color = sf::Color(200, 200, 200);
 			}
+			if ( players[my_id].position.x + i < 7 || players[my_id].position.x + i > MAP_SIZE + 7 || players[my_id].position.y + j < 7 || players[my_id].position.y + j > MAP_SIZE + 7)
+				color = sf::Color(50, 50, 50); 
+			//cout << i << " " << j << " " << players[my_id].position.x << " " << players[my_id].position.y << endl;
 			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
 		}
 	}
@@ -149,11 +154,13 @@ void Game::draw_game()
 		if (player.first == my_id)
 			continue;
 		color = sf::Color(200, 0, 0);
-		draw_sfml_rect(sfml_get_corrected_position(player.second.position, player.second.size), player.second.size, color, color);
+		draw_sfml_rect(get_relative_location(player.second.position, player.second.size), player.second.size, color, color);
 	}
 	mtx.unlock();
 	color = sf::Color(0, 0, 0);
-	draw_sfml_rect(sfml_get_corrected_position(players[my_id].position, players[my_id].size), players[my_id].size, color, color);
+	//draw_sfml_rect(sfml_get_corrected_position(players[my_id].position, players[my_id].size), players[my_id].size, color, color);
+	draw_sfml_rect(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 1, HEIGHT / 2  - players[my_id].size.y / 2 - 1}, players[my_id].size, color, color);
+	
 }
 
 void Game::game_handle_events()

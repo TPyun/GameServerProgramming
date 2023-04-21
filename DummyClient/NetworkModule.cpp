@@ -19,7 +19,8 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 50000;
+const static int MAX_TEST = 1000;
+
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
 const static int MAX_PACKET_SIZE = 255;
@@ -101,7 +102,7 @@ void DisconnectClient(int ci)
 		closesocket(g_clients[ci].client_socket);
 		active_clients--;
 	}
-	// cout << "Client [" << ci << "] Disconnected!\n";
+	cout << "Client [" << ci << "] Disconnected!\n";
 }
 
 void SendPacket(int cl, void* packet)
@@ -114,67 +115,84 @@ void SendPacket(int cl, void* packet)
 	ZeroMemory(&over->over, sizeof(over->over));
 	over->wsabuf.buf = reinterpret_cast<CHAR*>(over->IOCP_buf);
 	over->wsabuf.len = psize;
-	int ret = WSASend(g_clients[cl].client_socket, &over->wsabuf, 1, NULL, 0,
-		&over->over, NULL);
+	int ret = WSASend(g_clients[cl].client_socket, &over->wsabuf, 1, NULL, 0,&over->over, NULL);
 	if (0 != ret) {
 		int err_no = WSAGetLastError();
 		if (WSA_IO_PENDING != err_no)
 			error_display("Error in SendPacket:", err_no);
 	}
-	// std::cout << "Send Packet [" << ptype << "] To Client : " << cl << std::endl;
+	//std::cout << "Send Packet [" << ptype << "] To Client : " << cl << std::endl;
 }
 
 void ProcessPacket(int ci, unsigned char packet[])
 {
+	//switch (packet[1]) {
+	//case SC_MOVE_PLAYER: {
+	//	SC_MOVE_PLAYER_PACKET* move_packet = reinterpret_cast<SC_MOVE_PLAYER_PACKET*>(packet);
+	//	if (move_packet->id < MAX_CLIENTS) {
+	//		int my_id = client_map[move_packet->id];
+	//		if (-1 != my_id) {
+	//			g_clients[my_id].x = move_packet->x;
+	//			g_clients[my_id].y = move_packet->y;
+	//		}
+	//		if (ci == my_id) {
+	//			if (0 != move_packet->move_time) {
+	//				auto d_ms = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - move_packet->move_time;
+
+	//				if (global_delay < d_ms) global_delay++;
+	//				else if (global_delay > d_ms) global_delay--;
+	//			}
+	//		}
+	//	}
+	//}
+	//				   break;
+	//case SC_ADD_PLAYER: break;
+	//case SC_REMOVE_PLAYER: break;
+	//case SC_LOGIN_INFO:
+	//{
+	//	g_clients[ci].connected = true;
+	//	active_clients++;
+	//	SC_LOGIN_INFO_PACKET* login_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
+	//	int my_id = ci;
+	//	client_map[login_packet->id] = my_id;
+	//	g_clients[my_id].id = login_packet->id;
+	//	g_clients[my_id].x = login_packet->x;
+	//	g_clients[my_id].y = login_packet->y;
+
+	//	//cs_packet_teleport t_packet;
+	//	//t_packet.size = sizeof(t_packet);
+	//	//t_packet.type = CS_TELEPORT;
+	//	//SendPacket(my_id, &t_packet);
+	//}
+	//break;
+	//default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
+	//	while (true);
+	//}
+
+
+	
 	switch (packet[1]) {
-	case SC_MOVE_PLAYER: {
-		SC_MOVE_PLAYER_PACKET* move_packet = reinterpret_cast<SC_MOVE_PLAYER_PACKET*>(packet);
-		if (move_packet->id < MAX_CLIENTS) {
-			int my_id = client_map[move_packet->id];
+	case SC_MOVE:
+	{
+		SC_MOVE_PACKET* move_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
+		/*int client_id = recv_packet->client_id;
+		game->players[client_id].position = recv_packet->position;*/
+
+		if (move_packet->client_id < MAX_CLIENTS) {
+			int my_id = client_map[move_packet->client_id];
 			if (-1 != my_id) {
-				g_clients[my_id].x = move_packet->x;
-				g_clients[my_id].y = move_packet->y;
+				g_clients[my_id].x = move_packet->position.x;
+				g_clients[my_id].y = move_packet->position.y;
 			}
 			if (ci == my_id) {
-				if (0 != move_packet->move_time) {
-					auto d_ms = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - move_packet->move_time;
+				if (0 != move_packet->time) {
+					auto d_ms = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - move_packet->time;
 
 					if (global_delay < d_ms) global_delay++;
 					else if (global_delay > d_ms) global_delay--;
 				}
 			}
 		}
-	}
-					   break;
-	case SC_ADD_PLAYER: break;
-	case SC_REMOVE_PLAYER: break;
-	case SC_LOGIN_INFO:
-	{
-		g_clients[ci].connected = true;
-		active_clients++;
-		SC_LOGIN_INFO_PACKET* login_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
-		int my_id = ci;
-		client_map[login_packet->id] = my_id;
-		g_clients[my_id].id = login_packet->id;
-		g_clients[my_id].x = login_packet->x;
-		g_clients[my_id].y = login_packet->y;
-
-		//cs_packet_teleport t_packet;
-		//t_packet.size = sizeof(t_packet);
-		//t_packet.type = CS_TELEPORT;
-		//SendPacket(my_id, &t_packet);
-	}
-	break;
-	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
-		while (true);
-	}
-
-	switch (packet[1]) {
-	case SC_MOVE:
-	{
-		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->players[client_id].position = recv_packet->position;
 		break;
 	}
 	case SC_OUT:
@@ -186,17 +204,35 @@ void ProcessPacket(int ci, unsigned char packet[])
 		game->mtx.unlock();*/
 		break;
 	}
+	case SC_LOGIN:
+	{
+		/*SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		game->my_id = recv_packet->client_id;
+		game->players[game->my_id].position = recv_packet->position;
+		cout << "my id: " << game->my_id << endl;*/
+		g_clients[ci].connected = true;
+		active_clients++;
+		SC_LOGIN_PACKET* login_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		int my_id = ci;
+		client_map[login_packet->client_id] = my_id;
+		g_clients[my_id].id = login_packet->client_id;
+		g_clients[my_id].x = login_packet->position.x;
+		g_clients[my_id].y = login_packet->position.y;
+		break;
+	}
+	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
+		while (true);
 	}
 }
+bool running = true;
 
 void Worker_Thread()
 {
-	while (true) {
+	while (running) {
 		DWORD io_size;
 		unsigned long long ci;
 		OverlappedEx* over;
-		BOOL ret = GetQueuedCompletionStatus(g_hiocp, &io_size, &ci,
-			reinterpret_cast<LPWSAOVERLAPPED*>(&over), INFINITE);
+		BOOL ret = GetQueuedCompletionStatus(g_hiocp, &io_size, &ci, reinterpret_cast<LPWSAOVERLAPPED*>(&over), INFINITE);
 		// std::cout << "GQCS :";
 		int client_id = static_cast<int>(ci);
 		if (FALSE == ret) {
@@ -269,7 +305,7 @@ void Worker_Thread()
 	}
 }
 
-constexpr int DELAY_LIMIT = 100;
+constexpr int DELAY_LIMIT = 50;
 constexpr int DELAY_LIMIT2 = 150;
 constexpr int ACCEPT_DELY = 50;
 
@@ -312,7 +348,7 @@ void Adjust_Number_Of_Client()
 	SOCKADDR_IN ServerAddr;
 	ZeroMemory(&ServerAddr, sizeof(SOCKADDR_IN));
 	ServerAddr.sin_family = AF_INET;
-	ServerAddr.sin_port = htons(PORT_NUM);
+	ServerAddr.sin_port = htons(SERVER_PORT);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	//ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
 
@@ -335,12 +371,11 @@ void Adjust_Number_Of_Client()
 
 	CS_LOGIN_PACKET l_packet;
 
-	int temp = num_connections;
+	/*int temp = num_connections;
 	sprintf_s(l_packet.name, "%d", temp);
 	l_packet.size = sizeof(l_packet);
-	l_packet.type = CS_LOGIN;
+	l_packet.type = CS_LOGIN;*/
 	SendPacket(num_connections, &l_packet);
-
 
 	int ret = WSARecv(g_clients[num_connections].client_socket, &g_clients[num_connections].recv_over.wsabuf, 1,
 		NULL, &recv_flag, &g_clients[num_connections].recv_over.over, NULL);
@@ -359,26 +394,31 @@ fail_to_connect:
 
 void Test_Thread()
 {
-	while (true) {
-		//Sleep(max(20, global_delay));
+	while (running) {
+		Sleep(max(30, global_delay));
 		Adjust_Number_Of_Client();
 
 		for (int i = 0; i < num_connections; ++i) {
+			//Sleep(1);
+
 			if (false == g_clients[i].connected) continue;
 			if (g_clients[i].last_move_time + 1s > high_resolution_clock::now()) continue;
 			g_clients[i].last_move_time = high_resolution_clock::now();
 			CS_MOVE_PACKET my_packet;
-			my_packet.size = sizeof(my_packet);
-			my_packet.type = CS_MOVE;
 			switch (rand() % 4) {
-			case 0: my_packet.direction = 0; break;
-			case 1: my_packet.direction = 1; break;
-			case 2: my_packet.direction = 2; break;
-			case 3: my_packet.direction = 3; break;
+			case 0: my_packet.ks.up = true;  break;
+			case 1: my_packet.ks.down = true;  break;
+			case 2: my_packet.ks.left = true;  break;
+			case 3: my_packet.ks.right = true; break;
 			}
-			my_packet.move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+			my_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 			SendPacket(i, &my_packet);
 		}
+	}
+	for (auto& client : g_clients) {
+		if (client.id == -1) continue;
+		Sleep(10);
+		DisconnectClient(client.id);
 	}
 }
 
@@ -406,6 +446,7 @@ void InitializeNetwork()
 
 void ShutdownNetwork()
 {
+	running = false;
 	test_thread.join();
 	for (auto pth : worker_threads) {
 		pth->join();

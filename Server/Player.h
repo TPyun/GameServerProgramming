@@ -4,12 +4,11 @@
 class Player
 {
 public:
-	int name{};
 	KS key_input;
-	TI position{ 0, 0 };
-	TI size{ 40, 40 };
+	TS position{ 0, 0 };
+	TS size{ 40, 40 };
 	
-	Player(TI, int);
+	Player();
 	~Player();
 	void move(TI);
 	void key_check();

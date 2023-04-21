@@ -1205,12 +1205,23 @@
 #include <concurrent_unordered_set.h>
 #include "..\protocol.h"
 
+#include <iostream>
+#include <Windows.h>
+
+#define _CRTDBG_MAP_ALLOC
+#include <cstdlib>
+#include <crtdbg.h>
+
+#ifdef _DEBUG
+#define new new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#endif
 
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "MSWSock.lib")
 using namespace std;
 
 constexpr int VIEW_RANGE = 5;
+int over_num = 0;
 
 enum COMP_TYPE { OP_ACCEPT, OP_RECV, OP_SEND };
 class OVER_EXP {
@@ -1228,11 +1239,17 @@ public:
 	}
 	OVER_EXP(char* packet)
 	{
+		//cout << over_num++ << endl;
+		
 		_wsabuf.len = packet[0];
 		_wsabuf.buf = _send_buf;
 		ZeroMemory(&_over, sizeof(_over));
 		_comp_type = OP_SEND;
 		memcpy(_send_buf, packet, packet[0]);
+	}
+	~OVER_EXP()
+	{
+		//cout << over_num-- << endl;
 	}
 };
 
@@ -1442,7 +1459,10 @@ void process_packet(int c_id, char* packet)
 
 		unordered_set <int> new_vl;
 		for (auto& cl : clients) {
-			if (cl._state != ST_INGAME) continue;
+			{
+				lock_guard<mutex> ll(cl._s_lock);
+				if (ST_INGAME != cl._state) continue;
+			}
 			if (cl._id == c_id) continue;
 			if (can_see(cl._id, c_id))
 				new_vl.insert(cl._id);
@@ -1486,6 +1506,7 @@ void disconnect(int c_id)
 			lock_guard<mutex> ll(pl._s_lock);
 			if (ST_INGAME != pl._state) continue;
 		}
+		//cout << "remain client: " << pl._id << endl;
 		if (pl._id == c_id) continue;
 		pl.send_remove_player_packet(c_id);
 	}
@@ -1514,6 +1535,7 @@ void worker_thread(HANDLE h_iocp)
 		}
 
 		if ((0 == num_bytes) && ((ex_over->_comp_type == OP_RECV) || (ex_over->_comp_type == OP_SEND))) {
+			cout << "GQCS Error on client[" << key << "]\n";
 			disconnect(static_cast<int>(key));
 			if (ex_over->_comp_type == OP_SEND) delete ex_over;
 			continue;
@@ -1566,6 +1588,7 @@ void worker_thread(HANDLE h_iocp)
 		}
 		case OP_SEND:
 			delete ex_over;
+			//_CrtDumpMemoryLeaks();
 			break;
 		}
 	}

@@ -6,8 +6,19 @@
 #pragma comment (lib, "WS2_32.LIB")
 #pragma comment(lib, "MSWSock.lib")
 
-#define WIDTH 800
-#define HEIGHT 800
+#define SERVER_PORT 9000
+
+constexpr int WIDTH = 750;	//pixels
+constexpr int HEIGHT = 750;	//pixels
+
+constexpr int MAP_SIZE = 400;		//blocks
+constexpr int VIEW_RANGE = 7;	//blocks
+
+constexpr int DISTANCE = 15;		//blocks
+constexpr int BLOCK_SIZE = WIDTH / DISTANCE;	//pixels
+
+constexpr int BUFSIZE = 200;
+constexpr int MAX_USER = 10000;
 
 #define CS_LOGIN 0
 #define SC_LOGIN 1
@@ -27,11 +38,16 @@ typedef struct two_floats {
 	float y;
 } TF;
 
+typedef struct two_shorts {
+	unsigned short x;
+	unsigned short y;
+} TS;
+
 typedef struct key_state {
-	bool up;
-	bool down;
-	bool left;
-	bool right;
+	bool up = false;
+	bool down = false;
+	bool left = false;
+	bool right = false;
 } KS;
 
 struct CS_LOGIN_PACKET {
@@ -44,7 +60,7 @@ struct SC_LOGIN_PACKET {
 	unsigned char type = SC_LOGIN;
 	
 	int client_id;
-	TI position;
+	TS position;
 };
 
 struct SC_MOVE_PACKET {
@@ -52,7 +68,8 @@ struct SC_MOVE_PACKET {
 	unsigned char type = SC_MOVE;
 
 	int client_id;
-	TI position;
+	TS position;
+	unsigned int time{};
 };
 
 struct CS_MOVE_PACKET {
@@ -60,6 +77,7 @@ struct CS_MOVE_PACKET {
 	unsigned char type = CS_MOVE;
 
 	KS ks;
+	unsigned int time{};
 };
 
 struct SC_OUT_PACKET {

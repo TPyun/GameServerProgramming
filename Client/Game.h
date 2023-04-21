@@ -21,6 +21,7 @@ public:
 	void main_handle_events();
 	void draw_game();
 	void game_handle_events();
+	TI get_relative_location(TI, TI);
 
 	//ingame scene
 	KS key_input{ false, false, false, false };
@@ -32,11 +33,10 @@ public:
 	bool try_connect = false;
 	bool connected = false;
 	char scene{};
-	int my_id{};
+	int my_id = -1;
 
 	void draw_sfml_text(TI, char[], sf::Color);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
-	TI sfml_get_corrected_position(TI, TI);
 private:
 	sf::RenderWindow* sfml_window;
 	sf::Font sfml_font;
