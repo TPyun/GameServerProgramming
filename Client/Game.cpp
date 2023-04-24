@@ -69,15 +69,15 @@ void Game::draw_main()
 	draw_sfml_rect(TI{ 99, 230 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
 	draw_sfml_rect(TI{ 99, 330 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
 	
-	draw_sfml_text(TI{ 60, input_height }, (char*)"Tab", sf::Color(200, 200, 200));
+	draw_sfml_text(TI{ 60, input_height }, (char*)"Tab", sf::Color(200, 200, 200), 17);
 	
-	draw_sfml_text(TI{ 100, 100 }, (char*)"IP Address", sf::Color(200, 200, 200));
-	draw_sfml_text(TI{ 100, 200 }, (char*)"Port", sf::Color(200, 200, 200));
-	draw_sfml_text(TI{ 100, 300 }, (char*)"Play Game", sf::Color(200, 200, 200));
+	draw_sfml_text(TI{ 100, 100 }, (char*)"IP Address", sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 200 }, (char*)"Port", sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 300 }, (char*)"Play Game", sf::Color(200, 200, 200), 17);
 	
-	draw_sfml_text(TI{ 100, 130 }, (char*)ip_address, sf::Color(200, 200, 200));
-	draw_sfml_text(TI{ 100, 230 }, (char*)Port, sf::Color(200, 200, 200));
-	draw_sfml_text(TI{ 100, 330 }, (char*)"Press Enter", sf::Color(200, 200, 200));
+	draw_sfml_text(TI{ 100, 130 }, (char*)ip_address, sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 230 }, (char*)Port, sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 330 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
 }
 
 void Game::main_handle_events()
@@ -155,12 +155,12 @@ void Game::draw_game()
 			continue;
 		color = sf::Color(200, 0, 0);
 		draw_sfml_rect(get_relative_location(player.second.position, player.second.size), player.second.size, color, color);
+		draw_sfml_text_s(get_relative_location(player.second.position, player.second.size), std::to_string(player.first), sf::Color(200, 200, 200), 11);
 	}
 	mtx.unlock();
 	color = sf::Color(0, 0, 0);
-	//draw_sfml_rect(sfml_get_corrected_position(players[my_id].position, players[my_id].size), players[my_id].size, color, color);
 	draw_sfml_rect(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 1, HEIGHT / 2  - players[my_id].size.y / 2 - 1}, players[my_id].size, color, color);
-	
+	draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 1, HEIGHT / 2 - players[my_id].size.y / 2 - 1 }, std::to_string(my_id), sf::Color(200, 200, 200), 11);
 }
 
 void Game::game_handle_events()
@@ -185,11 +185,21 @@ void Game::game_handle_events()
 	}
 }
 
-void Game::draw_sfml_text(TI position, char str[], sf::Color color)
+void Game::draw_sfml_text(TI position, char str[], sf::Color color, int size)
 {
 	sfml_text.setFont(sfml_font);
 	sfml_text.setString(str);
-	sfml_text.setCharacterSize(17);
+	sfml_text.setCharacterSize(size);
+	sfml_text.setFillColor(color);
+	sfml_text.setPosition(position.x, position.y);
+	sfml_window->draw(sfml_text);
+}
+
+void Game::draw_sfml_text_s(TI position, string str, sf::Color color, int size)
+{
+	sfml_text.setFont(sfml_font);
+	sfml_text.setString(str);
+	sfml_text.setCharacterSize(size);
 	sfml_text.setFillColor(color);
 	sfml_text.setPosition(position.x, position.y);
 	sfml_window->draw(sfml_text);

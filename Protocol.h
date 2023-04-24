@@ -17,7 +17,7 @@ constexpr int VIEW_RANGE = 7;	//blocks
 constexpr int DISTANCE = 15;		//blocks
 constexpr int BLOCK_SIZE = WIDTH / DISTANCE;	//pixels
 
-constexpr int BUFSIZE = 200;
+constexpr int BUFSIZE = 1000;
 constexpr int MAX_USER = 10000;
 
 #define CS_LOGIN 0

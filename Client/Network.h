@@ -62,7 +62,7 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		game->players[client_id].position.x = recv_packet->position.x;
 		game->players[client_id].position.y = recv_packet->position.y;
-		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
+		cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 		break;
 	}
 	case SC_OUT:
@@ -72,7 +72,7 @@ void process_packet(char* packet)
 		game->mtx.lock();
 		game->players.erase(client_id);
 		game->mtx.unlock();
-		//cout << "client_id: " << client_id << " out" << endl;
+		cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
 	case SC_LOGIN:

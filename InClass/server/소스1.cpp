@@ -1239,7 +1239,7 @@ public:
 	}
 	OVER_EXP(char* packet)
 	{
-		//cout << over_num++ << endl;
+		cout << over_num++ << endl;
 		
 		_wsabuf.len = packet[0];
 		_wsabuf.buf = _send_buf;
@@ -1249,7 +1249,7 @@ public:
 	}
 	~OVER_EXP()
 	{
-		//cout << over_num-- << endl;
+		cout << over_num-- << endl;
 	}
 };
 
@@ -1292,6 +1292,8 @@ public:
 		_recv_over._wsabuf.len = BUF_SIZE - _prev_remain;
 		_recv_over._wsabuf.buf = _recv_over._send_buf + _prev_remain;
 		int retval = WSARecv(_socket, &_recv_over._wsabuf, 1, 0, &recv_flag,&_recv_over._over, 0);
+		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING)
+			cout << "WSARecv Error" << endl;
 		//cout << retval << endl;
 	}
 
@@ -1301,6 +1303,10 @@ public:
 
 		OVER_EXP* sdata = new OVER_EXP{ reinterpret_cast<char*>(packet) };
 		int retval = WSASend(_socket, &sdata->_wsabuf, 1, 0, 0, &sdata->_over, 0);
+		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+			cout << "WSASend Error" << endl;
+			//delete sdata;
+		}
 		//cout << retval << endl;
 	}
 
@@ -1506,10 +1512,10 @@ void disconnect(int c_id)
 			lock_guard<mutex> ll(pl._s_lock);
 			if (ST_INGAME != pl._state) continue;
 		}
-		//cout << "remain client: " << pl._id << endl;
 		if (pl._id == c_id) continue;
 		pl.send_remove_player_packet(c_id);
 	}
+	cout << over_num << endl;
 	closesocket(clients[c_id]._socket);
 
 	lock_guard<mutex> ll(clients[c_id]._s_lock);
@@ -1527,17 +1533,25 @@ void worker_thread(HANDLE h_iocp)
 		if (FALSE == ret) {
 			if (ex_over->_comp_type == OP_ACCEPT) cout << "Accept Error";
 			else {
-				cout << "GQCS Error on client[" << key << "]\n";
+				cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->_comp_type << "\n";
+
 				disconnect(static_cast<int>(key));
-				if (ex_over->_comp_type == OP_SEND) delete ex_over;
+				if (ex_over->_comp_type == OP_SEND) { 
+					delete ex_over; 
+					cout << "ex delete" << endl;
+				}
 				continue;
 			}
 		}
 
 		if ((0 == num_bytes) && ((ex_over->_comp_type == OP_RECV) || (ex_over->_comp_type == OP_SEND))) {
-			cout << "GQCS Error on client[" << key << "]\n";
+			cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->_comp_type << "\n";
+
 			disconnect(static_cast<int>(key));
-			if (ex_over->_comp_type == OP_SEND) delete ex_over;
+			if (ex_over->_comp_type == OP_SEND){
+				delete ex_over;
+				cout << "ex delete" << endl;
+			}
 			continue;
 		}
 

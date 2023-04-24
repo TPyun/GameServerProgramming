@@ -897,9 +897,6 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //ICOP Multi Thiread 
-TI randomly_spawn_player();
-void disconnect(int);
-int over_num = 0;
 
 enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND };
 class OVER_EXP {
@@ -913,7 +910,7 @@ public:
 	{
 		wsa_buf.len = BUFSIZE;
 		wsa_buf.buf = data;
-		completion_type = OP_RECV;
+		//completion_type = OP_RECV;
 		ZeroMemory(&over, sizeof(over));
 	}
 
@@ -922,7 +919,7 @@ public:
 		wsa_buf.len = packet[0];
 		wsa_buf.buf = data;
 		ZeroMemory(&over, sizeof(over));
-		completion_type = OP_SEND;
+		//completion_type = OP_SEND;
 		memcpy(data, packet, packet[0]);
 	}
 	~OVER_EXP() 
@@ -933,6 +930,8 @@ public:
 OVER_EXP global_accept_over;
 SOCKET global_client_socket;
 SOCKET global_server_socket;
+TI randomly_spawn_player();
+void disconnect(int);
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
 class SESSION {
@@ -966,13 +965,41 @@ public:
 		memset(&recv_over.over, 0, sizeof(recv_over.over));
 		recv_over.wsa_buf.len = BUFSIZE - remain_data;
 		recv_over.wsa_buf.buf = recv_over.data + remain_data;
-		WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag,&recv_over.over, 0);
+		recv_over.completion_type = OP_RECV;
+		int ret = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag,&recv_over.over, 0);
+		if (0 != ret) {
+			int err_no = WSAGetLastError();
+			if (WSA_IO_PENDING != err_no) {
+				cout << "WSARecv Error : " << err_no << " Client: " << client_id << endl;
+				bool is_ingame = false;
+				{
+					lock_guard<mutex> m{ state_mtx };
+					if (state == INGAME) is_ingame = true;
+				}
+				if (is_ingame)
+					disconnect(client_id);
+			}
+		}
 	}
 		
 	void do_send(void* packet) {
-		OVER_EXP* send_over = new OVER_EXP{ reinterpret_cast<char*>(packet) };
-		WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->over, 0);
-
+		OVER_EXP* send_over = new OVER_EXP(reinterpret_cast<char*>(packet));
+		send_over->completion_type = OP_SEND;
+		int ret = WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->over, 0);
+		if (0 != ret) {
+			int err_no = WSAGetLastError();
+			if (WSA_IO_PENDING != err_no) {
+				cout << "WSASend Error : " << err_no << " Client: " << client_id << endl;
+				delete send_over;
+				bool is_ingame = false;
+				{
+					lock_guard<mutex> m{ state_mtx };
+					if (state == INGAME) is_ingame = true;
+				}
+				if(is_ingame)
+					disconnect(client_id);
+			}
+		}
 	}
 	
 	void send_login_packet();
@@ -1012,19 +1039,25 @@ void SESSION::send_out_packet(int client_id)
 
 void disconnect(int client_id)
 {
-	//cout << "ERROR HANDLING: " << client_id << endl;
-	for (auto& client : clients) {
-		{
-			lock_guard<mutex> m(client.state_mtx);
-			if (INGAME != client.state) continue;
-		}
-		if (client.client_id == client_id) continue;
-		client.send_out_packet(client_id);
+	{
+		lock_guard<mutex> m{ clients[client_id].state_mtx };
+		clients[client_id].state = FREE;
+	}
+	clients[client_id].view_list_mtx.lock();
+	unordered_set<int> view_list = clients[client_id].view_list;
+	clients[client_id].view_list_mtx.unlock();
+
+	for (auto& client_in_view : view_list) {
+		clients[client_in_view].send_out_packet(client_id);
 	}
 	closesocket(clients[client_id].socket);
 
-	lock_guard<mutex> m{ clients[client_id].state_mtx };
-	clients[client_id].state = FREE;
+	int remain = 0;
+	for (auto& client : clients) {
+		lock_guard<mutex> m{ clients[client_id].state_mtx };
+		if (client.state == INGAME) remain++;
+	}
+	cout << "REMAIN: " << remain << endl;
 }
 
 TI randomly_spawn_player()
@@ -1095,11 +1128,19 @@ void process_packet(int client_id, char* packet)
 			if (new_view_list.count(old_one) == 0) {	//최신화 된 목록에 옛날 플레이어 없으면
 				moved_client->send_out_packet(old_one);	 //움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
 				clients[old_one].send_out_packet(client_id);	//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+				
+				clients[old_one].view_list_mtx.lock();
+				clients[old_one].view_list.erase(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+				clients[old_one].view_list_mtx.unlock();
 			}	
 		}
 		for (auto& new_one : new_view_list) {	//새로운 뷰 리스트에는 다 움직임 패킷
 			moved_client->send_move_packet(new_one);
 			clients[new_one].send_move_packet(client_id);
+			
+			clients[new_one].view_list_mtx.lock();
+			clients[new_one].view_list.insert(client_id);	//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			clients[new_one].view_list_mtx.unlock();
 		}
 		
 		moved_client->view_list_mtx.lock();
@@ -1107,6 +1148,23 @@ void process_packet(int client_id, char* packet)
 		moved_client->view_list_mtx.unlock();
 
 		moved_client->send_move_packet(client_id);	//본인 움직임 보냄
+		
+		//cout << "=================================" << endl;
+		//clients[0].view_list_mtx.lock();
+		//for (auto& one : clients[0].view_list) {
+		//	cout << "0" << ": " << one << endl;
+		//}
+		//clients[0].view_list_mtx.unlock();
+		//clients[1].view_list_mtx.lock();
+		//for (auto& one : clients[1].view_list) {
+		//	cout << "1" << ": " << one << endl;
+		//}
+		//clients[1].view_list_mtx.unlock();
+		//cout << "=================================" << endl;
+
+		
+
+		
 		break;
 	}
 	case CS_LOGIN:
@@ -1140,26 +1198,32 @@ void process_packet(int client_id, char* packet)
 void work_thread(HANDLE h_iocp)
 {
 	while (true) {
-		DWORD num_bytes;
+		DWORD num_bytes{};
 		ULONG_PTR key;
 		WSAOVERLAPPED* over = nullptr;
 		BOOL ret = GetQueuedCompletionStatus(h_iocp, &num_bytes, &key, &over, INFINITE);
 		OVER_EXP* ex_over = reinterpret_cast<OVER_EXP*>(over);
 		//cout << "ID: " << key << " TYPE: " << ex_over->completion_type << " Byte:" << num_bytes << endl;
 		if (FALSE == ret) {
+			cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
 			if (ex_over->completion_type == OP_ACCEPT) cout << "Accept Error";
 			else {
-				//cout << "GQCS Error on client[" << key << "]\n";
+				if (ex_over->completion_type == OP_SEND) {
+					cout << "Delete ex over" << endl;
+					delete ex_over;
+				}
 				disconnect(static_cast<int>(key));
-				if (ex_over->completion_type == OP_SEND) delete ex_over;
 				continue;
 			}
 		}
 
-		if ((0 == num_bytes) && ((ex_over->completion_type == OP_RECV) || (ex_over->completion_type == OP_SEND))) {
-			//cout << "GQCS Error on client[" << key << "]\n";
+		if (0 == num_bytes && ex_over->completion_type != OP_ACCEPT) {
+			cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
+			if (ex_over->completion_type == OP_SEND) {
+				cout << "Delete ex over" << endl;
+				delete ex_over;
+			}
 			disconnect(static_cast<int>(key));
-			if (ex_over->completion_type == OP_SEND) delete ex_over;
 			continue;
 		}
 

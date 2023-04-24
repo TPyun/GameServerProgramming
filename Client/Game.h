@@ -35,7 +35,8 @@ public:
 	char scene{};
 	int my_id = -1;
 
-	void draw_sfml_text(TI, char[], sf::Color);
+	void draw_sfml_text(TI, char[], sf::Color, int);
+	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
 private:
 	sf::RenderWindow* sfml_window;
