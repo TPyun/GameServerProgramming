@@ -56,7 +56,7 @@ void recv()
 void process_packet(char* packet)
 {
 	switch (packet[1]) {
-	case SC_MOVE:
+	case P_SC_MOVE:
 	{
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
@@ -65,7 +65,7 @@ void process_packet(char* packet)
 		cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 		break;
 	}
-	case SC_OUT:
+	case P_SC_OUT:
 	{
 		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
@@ -75,7 +75,7 @@ void process_packet(char* packet)
 		cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
-	case SC_LOGIN:
+	case P_SC_LOGIN:
 	{
 		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;

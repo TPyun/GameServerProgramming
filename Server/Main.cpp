@@ -1005,6 +1005,8 @@ public:
 	void send_login_packet();
 	void send_move_packet(int);
 	void send_out_packet(int);
+	void insert_view_list(int);
+	void erase_view_list(int);
 };
 
 array<SESSION, MAX_USER> clients;
@@ -1035,6 +1037,20 @@ void SESSION::send_out_packet(int client_id)
 	SC_OUT_PACKET packet;
 	packet.client_id = client_id;
 	do_send(&packet);
+}
+
+void SESSION::insert_view_list(int new_client_id)
+{
+	view_list_mtx.lock();
+	view_list.insert(new_client_id);
+	view_list_mtx.unlock();
+}
+
+void SESSION::erase_view_list(int new_client_id)
+{
+	view_list_mtx.lock();
+	view_list.erase(new_client_id);
+	view_list_mtx.unlock();
 }
 
 void disconnect(int client_id)
@@ -1100,7 +1116,7 @@ int get_new_client_id()
 void process_packet(int client_id, char* packet)
 {
 	switch (packet[1]) {
-	case CS_MOVE:
+	case P_CS_MOVE:
 	{
 		SESSION* moved_client = &clients[client_id];
 		CS_MOVE_PACKET* recv_packet = reinterpret_cast<CS_MOVE_PACKET*>(packet);
@@ -1121,33 +1137,31 @@ void process_packet(int client_id, char* packet)
 			if (client.client_id == client_id) continue;
 			
 			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(client.client_id);			//new list 채우기
+				new_view_list.insert(client.client_id);		//new list 채우기
 			}
 		}
 		for (auto& old_one : old_view_list) {
-			if (new_view_list.count(old_one) == 0) {	//최신화 된 목록에 옛날 플레이어 없으면
-				moved_client->send_out_packet(old_one);	 //움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
-				clients[old_one].send_out_packet(client_id);	//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
-				
-				clients[old_one].view_list_mtx.lock();
-				clients[old_one].view_list.erase(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
-				clients[old_one].view_list_mtx.unlock();
+			if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
+				moved_client->send_out_packet(old_one);		//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
+				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+
+				clients[old_one].erase_view_list(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 			}	
 		}
-		for (auto& new_one : new_view_list) {	//새로운 뷰 리스트에는 다 움직임 패킷
+		for (auto& new_one : new_view_list) {				//새로운 뷰 리스트에는 다 움직임 패킷
 			moved_client->send_move_packet(new_one);
 			clients[new_one].send_move_packet(client_id);
 			
-			clients[new_one].view_list_mtx.lock();
-			clients[new_one].view_list.insert(client_id);	//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-			clients[new_one].view_list_mtx.unlock();
+			if(old_view_list.count(new_one) == 0){			//새로 시야에 들어온 플레이어
+				clients[new_one].insert_view_list(client_id);//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			}
 		}
 		
 		moved_client->view_list_mtx.lock();
-		moved_client->view_list = new_view_list;	//새로운 뷰 리스트로 갈아치움
+		moved_client->view_list = new_view_list;					//새로운 뷰 리스트로 갈아치움
 		moved_client->view_list_mtx.unlock();
 
-		moved_client->send_move_packet(client_id);	//본인 움직임 보냄
+		moved_client->send_move_packet(client_id);					//본인 움직임 보냄
 		
 		//cout << "=================================" << endl;
 		//clients[0].view_list_mtx.lock();
@@ -1162,16 +1176,13 @@ void process_packet(int client_id, char* packet)
 		//clients[1].view_list_mtx.unlock();
 		//cout << "=================================" << endl;
 
-		
-
-		
 		break;
 	}
-	case CS_LOGIN:
+	case P_CS_LOGIN:
 	{
 		SESSION* new_client = &clients[client_id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
-		new_client->send_login_packet();	//새로온 애한테 로그인 됐다고 전송
+		new_client->send_login_packet();									//새로온 애한테 로그인 됐다고 전송
 		{
 			lock_guard<mutex> m{ clients[client_id].state_mtx };
 			clients[client_id].state = INGAME;
@@ -1183,10 +1194,11 @@ void process_packet(int client_id, char* packet)
 			}
 			if (client_id == old_client.client_id) continue;
 			if (in_eyesight(client_id, old_client.client_id)) {
-				old_client.view_list.insert(client_id);		//시야 안에 들어온 클라의 View list에 새로온 놈 추가
-				new_client->view_list.insert(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
-				new_client->send_move_packet(old_client.client_id);	//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
-				old_client.send_move_packet(client_id); //시야 안에 클라한테 새로온 애 위치 전송
+				old_client.insert_view_list(client_id);//시야 안에 들어온 클라의 View list에 새로온 놈 추가
+				new_client->insert_view_list(old_client.client_id);//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
+
+				new_client->send_move_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
+				old_client.send_move_packet(client_id);						//시야 안에 클라한테 새로온 애 위치 전송
 			}
 		}
 		break;
@@ -1201,6 +1213,7 @@ void work_thread(HANDLE h_iocp)
 		DWORD num_bytes{};
 		ULONG_PTR key;
 		WSAOVERLAPPED* over = nullptr;
+		//완료된 상태를 가져옴
 		BOOL ret = GetQueuedCompletionStatus(h_iocp, &num_bytes, &key, &over, INFINITE);
 		OVER_EXP* ex_over = reinterpret_cast<OVER_EXP*>(over);
 		//cout << "ID: " << key << " TYPE: " << ex_over->completion_type << " Byte:" << num_bytes << endl;
@@ -1239,19 +1252,19 @@ void work_thread(HANDLE h_iocp)
 		case OP_RECV:
 		{
 			int data_to_proccess = num_bytes + clients[key].remain_data;
-			char* p = ex_over->data;
+			char* packet = ex_over->data;
 			while (data_to_proccess > 0) {
-				int packet_size = p[0];
+				int packet_size = packet[0];
 				if (packet_size <= data_to_proccess) {
-					process_packet(static_cast<int>(key), p);
-					p += packet_size;
+					process_packet(static_cast<int>(key), packet);
+					packet += packet_size;
 					data_to_proccess -= packet_size;
 				}
 				else break;
 			}
 			clients[key].remain_data = data_to_proccess;
 			if (data_to_proccess > 0) {
-				memcpy(ex_over->data, p, data_to_proccess);
+				memcpy(ex_over->data, packet, data_to_proccess);
 			}
 			clients[key].do_recv();
 			break;
@@ -1267,6 +1280,9 @@ void work_thread(HANDLE h_iocp)
 				clients[client_id].client_id = client_id;
 				clients[client_id].socket = global_client_socket;
 				clients[client_id].remain_data = 0;
+				clients[client_id].view_list_mtx.lock();
+				clients[client_id].view_list.clear();
+				clients[client_id].view_list_mtx.unlock();
 
 				CreateIoCompletionPort(reinterpret_cast<HANDLE>(global_client_socket), h_iocp, client_id, 0);
 				clients[client_id].do_recv();
@@ -1288,28 +1304,30 @@ void work_thread(HANDLE h_iocp)
 int main()
 {
 	WSADATA WSAData;
-	HANDLE h_iocp;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
 	global_server_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 	SOCKADDR_IN server_addr;
 	ZeroMemory(&server_addr, sizeof(server_addr));
+
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(SERVER_PORT);
 	server_addr.sin_addr.S_un.S_addr = INADDR_ANY;
+
 	bind(global_server_socket, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr));
 	listen(global_server_socket, SOMAXCONN);
+
 	SOCKADDR_IN client_addr;
 	int addr_size = sizeof(client_addr);
-	cout << "Port: " << SERVER_PORT << endl;
-
-	h_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	//IOCP 생성 (마지막 인자 0은 코어 개수만큼 사용)
+	HANDLE h_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	//먼저 IOCP 생성한걸 ExistingCompletionPort에 넣어줌. key는 임의로 아무거나. 마지막 것은 무시
 	CreateIoCompletionPort(reinterpret_cast<HANDLE>(global_server_socket), h_iocp, 9999, 0);
 	global_client_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 	global_accept_over.completion_type = OP_ACCEPT;
 	AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 
 	vector <thread> worker_threads;
-	int num_threads = std::thread::hardware_concurrency();
+	int num_threads = thread::hardware_concurrency();
 	for (int i = 0; i < num_threads; ++i)
 		worker_threads.emplace_back(work_thread, h_iocp);
 	for (auto& th : worker_threads)

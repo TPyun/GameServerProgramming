@@ -5,8 +5,8 @@ class Player
 {
 public:
 	KS key_input;
-	TS position{ 0, 0 };
-	TS size{ 40, 40 };
+	TI position{ 0, 0 };
+	TI size{ 40, 40 };
 	
 	Player();
 	~Player();

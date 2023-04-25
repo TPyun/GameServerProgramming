@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 6000;
+const static int MAX_TEST = 9999;
 
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
@@ -172,7 +172,7 @@ void ProcessPacket(int ci, unsigned char packet[])
 
 	
 	switch (packet[1]) {
-	case SC_MOVE:
+	case P_SC_MOVE:
 	{
 		SC_MOVE_PACKET* move_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		/*int client_id = recv_packet->client_id;
@@ -195,7 +195,7 @@ void ProcessPacket(int ci, unsigned char packet[])
 		}
 		break;
 	}
-	case SC_OUT:
+	case P_SC_OUT:
 	{
 		/*SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
@@ -204,7 +204,7 @@ void ProcessPacket(int ci, unsigned char packet[])
 		game->mtx.unlock();*/
 		break;
 	}
-	case SC_LOGIN:
+	case P_SC_LOGIN:
 	{
 		/*SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;

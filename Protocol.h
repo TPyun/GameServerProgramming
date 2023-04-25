@@ -1,4 +1,3 @@
-#pragma once
 #include <iostream>
 #include <WS2tcpip.h>
 #include <MSWSock.h>
@@ -11,7 +10,7 @@
 constexpr int WIDTH = 750;	//pixels
 constexpr int HEIGHT = 750;	//pixels
 
-constexpr int MAP_SIZE = 400;		//blocks
+constexpr int MAP_SIZE = 1000;		//blocks
 constexpr int VIEW_RANGE = 7;	//blocks
 
 constexpr int DISTANCE = 15;		//blocks
@@ -20,28 +19,32 @@ constexpr int BLOCK_SIZE = WIDTH / DISTANCE;	//pixels
 constexpr int BUFSIZE = 1000;
 constexpr int MAX_USER = 10000;
 
-#define CS_LOGIN 0
-#define SC_LOGIN 1
+constexpr char P_CS_LOGIN = 0;
+constexpr char P_CS_MOVE = 3;
 
-#define SC_MOVE 2
-#define CS_MOVE 3
-
-#define SC_OUT 4
+constexpr char P_SC_LOGIN = 1;
+constexpr char P_SC_MOVE = 2;
+constexpr char P_SC_OUT = 4;
 
 typedef struct two_ints {
 	int x;
 	int y;
 } TI;
 
+typedef struct two_uints {
+	unsigned int x;
+	unsigned int y;
+} TUI;
+
 typedef struct two_floats {
 	float x;
 	float y;
 } TF;
 
-typedef struct two_shorts {
+typedef struct two_ushorts {
 	unsigned short x;
 	unsigned short y;
-} TS;
+} TUS;
 
 typedef struct key_state {
 	bool up = false;
@@ -50,31 +53,34 @@ typedef struct key_state {
 	bool right = false;
 } KS;
 
+
+#pragma pack (push, 1)
+
 struct CS_LOGIN_PACKET {
 	unsigned char size = sizeof(CS_LOGIN_PACKET);
-	unsigned char type = CS_LOGIN;
+	unsigned char type = P_CS_LOGIN;
 };
 
 struct SC_LOGIN_PACKET {
 	unsigned char size = sizeof(SC_LOGIN_PACKET);
-	unsigned char type = SC_LOGIN;
+	unsigned char type = P_SC_LOGIN;
 	
 	int client_id;
-	TS position;
+	TI position;
 };
 
 struct SC_MOVE_PACKET {
 	unsigned char size = sizeof(SC_MOVE_PACKET);
-	unsigned char type = SC_MOVE;
+	unsigned char type = P_SC_MOVE;
 
 	int client_id;
-	TS position;
+	TI position;
 	unsigned int time{};
 };
 
 struct CS_MOVE_PACKET {
 	unsigned char size = sizeof(CS_MOVE_PACKET);
-	unsigned char type = CS_MOVE;
+	unsigned char type = P_CS_MOVE;
 
 	KS ks;
 	unsigned int time{};
@@ -82,7 +88,9 @@ struct CS_MOVE_PACKET {
 
 struct SC_OUT_PACKET {
 	unsigned char size = sizeof(SC_OUT_PACKET);
-	unsigned char type = SC_OUT;
+	unsigned char type = P_SC_OUT;
 
 	int client_id;
 };
+
+#pragma pack (pop)
