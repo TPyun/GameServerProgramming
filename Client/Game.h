@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include <chrono>
 #include "Player.h"
 
 class Game
@@ -11,17 +12,12 @@ class Game
 public:
 	Game();
 	~Game();
-	
 	void update();
 	void render();
 	void clear();
-
+	
 	bool get_running() { return isRunning; }
-	void draw_main();
-	void main_handle_events();
-	void draw_game();
-	void game_handle_events();
-	TI get_relative_location(TI, TI);
+	void initialize_ingame();
 
 	//ingame scene
 	KS key_input{ false, false, false, false };
@@ -32,13 +28,23 @@ public:
 	char Port[100] = "9000";
 	bool try_connect = false;
 	bool connected = false;
-	char scene{};
 	int my_id = -1;
-
+	int ping = 0;
+	bool move_flag = false;
+	char scene = 0;
+	
+private:
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
-private:
+	
+	void draw_main();
+	void main_handle_events();
+	void draw_game();
+	void draw_information();
+	void game_handle_events();
+	TI get_relative_location(TI, TI);
+	
 	sf::RenderWindow* sfml_window;
 	sf::Font sfml_font;
 	sf::Event sfml_event{};
@@ -48,6 +54,7 @@ private:
 
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
 	bool isRunning = true;
+	bool information_mode = false;
 	
 	//main scene
 	int input_height = 130;

@@ -910,21 +910,18 @@ public:
 	{
 		wsa_buf.len = BUFSIZE;
 		wsa_buf.buf = data;
-		//completion_type = OP_RECV;
+		completion_type = OP_RECV;
 		ZeroMemory(&over, sizeof(over));
 	}
-
 	OVER_EXP(char* packet)	//Send
 	{
 		wsa_buf.len = packet[0];
 		wsa_buf.buf = data;
 		ZeroMemory(&over, sizeof(over));
-		//completion_type = OP_SEND;
+		completion_type = OP_SEND;
 		memcpy(data, packet, packet[0]);
 	}
-	~OVER_EXP() 
-	{
-	}
+	~OVER_EXP() {}
 };
 
 OVER_EXP global_accept_over;
@@ -938,14 +935,15 @@ class SESSION {
 	OVER_EXP recv_over;
 	
 public:
+	SOCKET socket;
+	int client_id;
+	unsigned int prev_time;
+	int	remain_data;
+	Player player;
+	unsigned char district;
+	
 	SESSION_STATE state;
 	mutex state_mtx;
-	SOCKET socket;
-	int client_id{};
-	unsigned int prev_time{};
-	int	remain_data{};
-	Player player;
-	
 	unordered_set<int> view_list;
 	mutex view_list_mtx;
 
@@ -955,8 +953,8 @@ public:
 		client_id = -1;
 		prev_time = 0;
 		remain_data = 0;
+		district = 0;
 	}
-
 	~SESSION() {}
 
 	void do_recv() {
@@ -965,7 +963,6 @@ public:
 		memset(&recv_over.over, 0, sizeof(recv_over.over));
 		recv_over.wsa_buf.len = BUFSIZE - remain_data;
 		recv_over.wsa_buf.buf = recv_over.data + remain_data;
-		recv_over.completion_type = OP_RECV;
 		int ret = WSARecv(socket, &recv_over.wsa_buf, 1, 0, &recv_flag,&recv_over.over, 0);
 		if (0 != ret) {
 			int err_no = WSAGetLastError();
@@ -984,7 +981,6 @@ public:
 		
 	void do_send(void* packet) {
 		OVER_EXP* send_over = new OVER_EXP(reinterpret_cast<char*>(packet));
-		send_over->completion_type = OP_SEND;
 		int ret = WSASend(socket, &send_over->wsa_buf, 1, 0, 0, &send_over->over, 0);
 		if (0 != ret) {
 			int err_no = WSAGetLastError();
@@ -1013,12 +1009,9 @@ array<SESSION, MAX_USER> clients;
 
 void SESSION::send_login_packet()
 {
+	player.position = randomly_spawn_player();
 	SC_LOGIN_PACKET packet;
 	packet.client_id = client_id;
-	//player.position = randomly_spawn_player();
-	player.position.x = rand() % MAP_SIZE;
-	player.position.y = rand() % MAP_SIZE;
-
 	packet.position = player.position;
 	do_send(&packet);
 }
@@ -1028,7 +1021,7 @@ void SESSION::send_move_packet(int client_id)
 	SC_MOVE_PACKET packet;
 	packet.client_id = client_id;
 	packet.position = clients[client_id].player.position;
-	packet.time = prev_time;
+	packet.time = clients[client_id].prev_time;
 	do_send(&packet);
 }
 
@@ -1083,16 +1076,7 @@ TI randomly_spawn_player()
 	uniform_int_distribution <int>spawn_location(0, MAP_SIZE);
 	do {
 		bool same_location = false;
-		TI player_location{ spawn_location(dre) * BLOCK_SIZE + BLOCK_SIZE / 2, spawn_location(dre) * BLOCK_SIZE + BLOCK_SIZE / 2 };
-		if (clients.size() >= MAP_SIZE * MAP_SIZE) {		//칸이 64개니까 64명 넘어가면 걍 겹치게 둠
-			return player_location;
-		}
-		for (auto& client : clients) {	//위치 겹치면 랜덤 다시 돌림
-			if (client.player.position.x == player_location.x && client.player.position.y == player_location.y) {
-				same_location = true;
-				break;
-			}
-		}
+		TI player_location{ spawn_location(dre), spawn_location(dre)};
 		if (!same_location) return player_location;
 	} while (true);
 }
@@ -1135,9 +1119,8 @@ void process_packet(int client_id, char* packet)
 				if (client.state != INGAME) continue;
 			}
 			if (client.client_id == client_id) continue;
-			
 			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(client.client_id);		//new list 채우기
+				new_view_list.insert(client.client_id);			//new list 채우기
 			}
 		}
 		for (auto& old_one : old_view_list) {
@@ -1162,20 +1145,6 @@ void process_packet(int client_id, char* packet)
 		moved_client->view_list_mtx.unlock();
 
 		moved_client->send_move_packet(client_id);					//본인 움직임 보냄
-		
-		//cout << "=================================" << endl;
-		//clients[0].view_list_mtx.lock();
-		//for (auto& one : clients[0].view_list) {
-		//	cout << "0" << ": " << one << endl;
-		//}
-		//clients[0].view_list_mtx.unlock();
-		//clients[1].view_list_mtx.lock();
-		//for (auto& one : clients[1].view_list) {
-		//	cout << "1" << ": " << one << endl;
-		//}
-		//clients[1].view_list_mtx.unlock();
-		//cout << "=================================" << endl;
-
 		break;
 	}
 	case P_CS_LOGIN:

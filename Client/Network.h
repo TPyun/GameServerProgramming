@@ -3,7 +3,7 @@
 #include <sstream>
 #include "Game.h"
 using namespace std;
-
+using namespace chrono;
 Game* game;
 SOCKET server_socket;
 WSABUF send_wsa_buffer;
@@ -17,11 +17,11 @@ int remain_data{};
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
+void process_packet(char* packet);
 
 void send(char* packet)
 {
 	if (!game->connected) return;
-	Sleep(1);
 	//cout << "send" << endl;
 
 	send_wsa_buffer.buf = packet;
@@ -38,53 +38,19 @@ void send(char* packet)
 
 void recv()
 {
+	if (!game->connected) return;
+	//cout << "recv" << endl;
+
 	recv_wsa_buffer.buf = recv_buffer + remain_data;
 	recv_wsa_buffer.len = BUF_SIZE - remain_data;
 
 	DWORD recv_flag = 0;
-
-	//cout << "recv" << endl;
 	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &recv_over, recv_callback);
 	//Recv Error Handling
 	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 		cout << "WSARecv failed with error: " << WSAGetLastError() << endl;
 		game->connected = false;
 		return;
-	}
-}
-
-void process_packet(char* packet)
-{
-	switch (packet[1]) {
-	case P_SC_MOVE:
-	{
-		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->players[client_id].position.x = recv_packet->position.x;
-		game->players[client_id].position.y = recv_packet->position.y;
-		cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
-		break;
-	}
-	case P_SC_OUT:
-	{
-		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->mtx.lock();
-		game->players.erase(client_id);
-		game->mtx.unlock();
-		cout << "client_id: " << client_id << " out" << endl;
-		break;
-	}
-	case P_SC_LOGIN:
-	{
-		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
-		game->my_id = recv_packet->client_id;
-		game->players[game->my_id].position.x = recv_packet->position.x;
-		game->players[game->my_id].position.y = recv_packet->position.y;
-		//cout << "my id: " << game->my_id << endl;
-		break;
-	}
-	default: cout << "Unknown Packet Type" << endl; break;
 	}
 }
 
@@ -113,7 +79,6 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 	if (data_to_proccess > 0) {
 		memcpy(recv_buffer, packet, data_to_proccess);
 	}
-	
 	recv();
 }
 
@@ -123,9 +88,55 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
-	
 	//cout << "Send: " << num_bytes << endl;
-	ZeroMemory(&game->key_input, sizeof(KS));		//전송 후 키입력 초기화
+}
+
+void send_move_packet()
+{
+	CS_MOVE_PACKET move_packet;
+	move_packet.ks = game->key_input;
+	move_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+	send((char*)&move_packet);
+	game->move_flag = false;
+}
+
+void process_packet(char* packet)
+{
+	switch (packet[1]) {
+	case P_SC_MOVE:
+	{
+		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->players[client_id].position.x = recv_packet->position.x;
+		game->players[client_id].position.y = recv_packet->position.y;
+		if (client_id == game->my_id)
+			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
+		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
+		break;
+	}
+	case P_SC_OUT:
+	{
+		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->mtx.lock();
+		game->players.erase(client_id);
+		game->mtx.unlock();
+		//cout << "client_id: " << client_id << " out" << endl;
+		break;
+	}
+	case P_SC_LOGIN:
+	{
+		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		game->my_id = recv_packet->client_id;
+		game->players[game->my_id].position.x = recv_packet->position.x;
+		game->players[game->my_id].position.y = recv_packet->position.y;
+		//cout << "my id: " << game->my_id << endl;
+		
+		game->initialize_ingame();
+		break;
+	}
+	default: cout << "Unknown Packet Type" << endl; break;
+	}
 }
 
 DWORD __stdcall process(LPVOID arg)
@@ -165,12 +176,9 @@ DWORD __stdcall process(LPVOID arg)
 		CS_LOGIN_PACKET login_packet;
 		send((char*)&login_packet);
 		recv();
-		game->scene = 1;
 		while (game->get_running() && game->connected) {
-			if (game->key_input.up || game->key_input.down || game->key_input.left || game->key_input.right) {
-				CS_MOVE_PACKET move_packet;
-				move_packet.ks = game->key_input;
-				send((char*)&move_packet);
+			if (game->move_flag) {
+				send_move_packet();
 			}
 			SleepEx(10, true);
 		}
