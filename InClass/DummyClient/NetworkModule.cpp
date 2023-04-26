@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 20000;
+const static int MAX_TEST = 15000;
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
 const static int MAX_PACKET_SIZE = 255;
@@ -294,8 +294,6 @@ void Adjust_Number_Of_Client()
 	ServerAddr.sin_family = AF_INET;
 	ServerAddr.sin_port = htons(PORT_NUM);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	//ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
-
 
 	int Result = WSAConnect(g_clients[num_connections].client_socket, (sockaddr*)&ServerAddr, sizeof(ServerAddr), NULL, NULL, NULL, NULL);
 	if (0 != Result) {
