@@ -3,9 +3,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
-#include <atomic>
 #include <unordered_set>
-#include <concurrent_unordered_set.h>
 #include "Player.h"
 
 using namespace std;
