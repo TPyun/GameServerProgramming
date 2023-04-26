@@ -38,7 +38,6 @@ public:
 
 TI randomly_spawn_player();
 void disconnect(int);
-atomic<int> connected_players = 0;
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
 class SESSION {
@@ -103,8 +102,6 @@ array<SESSION, MAX_USER> clients;
 
 void SESSION::send_login_packet()
 {
-	connected_players.fetch_add(1);
-
 	player.position = randomly_spawn_player();
 	SC_LOGIN_PACKET packet;
 	packet.client_id = client_id;
@@ -167,8 +164,6 @@ void disconnect(int client_id)
 		if (client.state == INGAME) remain++;
 	}
 	cout << "REMAIN: " << remain << endl;
-
-	connected_players.fetch_sub(1);
 }
 
 TI randomly_spawn_player()
@@ -223,7 +218,6 @@ void process_packet(int client_id, char* packet)
 				if (client.state != INGAME) continue;
 			}
 			if (client.client_id == client_id) continue;
-			if (++num_clients > connected_players.load()) break;
 
 			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client.client_id);			//new list 채우기
@@ -268,7 +262,6 @@ void process_packet(int client_id, char* packet)
 				if (old_client.state != INGAME) continue;
 			}
 			if (client_id == old_client.client_id) continue;
-			if (++num_clients > connected_players.load()) break;
 			
 			if (in_eyesight(client_id, old_client.client_id)) {
 				old_client.insert_view_list(client_id);//시야 안에 들어온 클라의 View list에 새로온 놈 추가
@@ -311,7 +304,6 @@ int main()
 		//완료된 상태를 가져옴
 		BOOL ret = GetQueuedCompletionStatus(h_iocp, &num_bytes, &key, &over, INFINITE);
 		OVER_EXP* ex_over = reinterpret_cast<OVER_EXP*>(over);
-		//cout << "ID: " << key << " TYPE: " << ex_over->completion_type << " Byte:" << num_bytes << endl;
 		if (FALSE == ret) {
 			//cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
 			if (ex_over->completion_type == OP_ACCEPT) cout << "Accept Error";
@@ -328,7 +320,6 @@ int main()
 		if (0 == num_bytes && ex_over->completion_type != OP_ACCEPT) {
 			//cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
 			if (ex_over->completion_type == OP_SEND) {
-				//cout << "Delete ex over" << endl;
 				delete ex_over;
 			}
 			disconnect(static_cast<int>(key));
@@ -339,9 +330,7 @@ int main()
 		{
 		case OP_SEND: 
 		{
-			//printf("%4d delete %p\n\n", key, ex_over);
 			delete ex_over;
-			//_CrtDumpMemoryLeaks();
 			break;
 		}
 		case OP_RECV:
