@@ -7,7 +7,7 @@
 
 #define SERVER_PORT 9000
 
-constexpr int BUFSIZE = 1000;
+constexpr int BUFSIZE = 200;
 constexpr int MAX_USER = 20000;
 
 constexpr int WIDTH = 750;	//Client

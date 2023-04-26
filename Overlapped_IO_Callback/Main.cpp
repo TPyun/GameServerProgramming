@@ -42,7 +42,6 @@ public:
 TI randomly_spawn_player();
 void disconnect(int);
 void process_packet(int client_id, char* packet);
-atomic<int> connected_players = 0;
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
 class SESSION {
@@ -119,8 +118,6 @@ array<SESSION, MAX_USER> clients;
 
 void SESSION::send_login_packet()
 {
-	connected_players.fetch_add(1);
-
 	player.position = randomly_spawn_player();
 	SC_LOGIN_PACKET packet;
 	packet.client_id = client_id;
@@ -180,8 +177,6 @@ void disconnect(int client_id)
 		clients[client_in_view].send_out_packet(client_id);
 	}
 	closesocket(clients[client_id].socket);
-
-	connected_players.fetch_sub(1);
 }
 
 TI randomly_spawn_player()
@@ -283,7 +278,6 @@ void process_packet(int client_id, char* packet)
 				if (client.state != INGAME) continue;
 			}
 			if (client.client_id == client_id) continue;
-			if (++num_clients > connected_players.load()) break;
 
 			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client.client_id);			//new list 채우기
@@ -327,7 +321,6 @@ void process_packet(int client_id, char* packet)
 				if (old_client.state != INGAME) continue;
 			}
 			if (client_id == old_client.client_id) continue;
-			if (++num_clients > connected_players.load()) break;
 
 			if (in_eyesight(client_id, old_client.client_id)) {
 				old_client.insert_view_list(client_id);//시야 안에 들어온 클라의 View list에 새로온 놈 추가
