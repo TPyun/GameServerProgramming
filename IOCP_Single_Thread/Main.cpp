@@ -157,13 +157,6 @@ void disconnect(int client_id)
 		clients[client_in_view].send_out_packet(client_id);
 	}
 	closesocket(clients[client_id].socket);
-
-	int remain = 0;
-	for (auto& client : clients) {
-		lock_guard<mutex> m{ clients[client_id].state_mtx };
-		if (client.state == INGAME) remain++;
-	}
-	cout << "REMAIN: " << remain << endl;
 }
 
 TI randomly_spawn_player()
@@ -204,6 +197,7 @@ void process_packet(int client_id, char* packet)
 		memcpy(&moved_client->player.key_input, &recv_packet->ks, sizeof(recv_packet->ks));
 		moved_client->player.key_check();
 		moved_client->prev_time = recv_packet->time;
+
 		moved_client->send_move_packet(client_id);					//본인 움직임 보냄
 
 		unordered_set<int> new_view_list;	//새로 업데이트 할 뷰 리스트
@@ -211,7 +205,6 @@ void process_packet(int client_id, char* packet)
 		unordered_set<int> old_view_list = moved_client->view_list;	//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
 
-		int num_clients = 0;
 		for (auto& client : clients) {
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
@@ -223,26 +216,22 @@ void process_packet(int client_id, char* packet)
 				new_view_list.insert(client.client_id);			//new list 채우기
 			}
 		}
+		for (auto& new_one : new_view_list) {
+			clients[new_one].send_move_packet(client_id);
+			if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
+				clients[new_one].insert_view_list(client_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+				moved_client->send_move_packet(new_one);
+				moved_client->insert_view_list(new_one);		//뷰 리스트에 추가
+			}
+		}
 		for (auto& old_one : old_view_list) {
 			if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
 				moved_client->send_out_packet(old_one);		//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
 				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
-
+				moved_client->erase_view_list(old_one);		//뷰 리스트에서 삭제
 				clients[old_one].erase_view_list(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 			}
 		}
-		for (auto& new_one : new_view_list) {				//새로운 뷰 리스트에는 다 움직임 패킷
-			moved_client->send_move_packet(new_one);
-			clients[new_one].send_move_packet(client_id);
-
-			if (old_view_list.count(new_one) == 0) {			//새로 시야에 들어온 플레이어
-				clients[new_one].insert_view_list(client_id);//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-			}
-		}
-
-		moved_client->view_list_mtx.lock();
-		moved_client->view_list = new_view_list;					//새로운 뷰 리스트로 갈아치움
-		moved_client->view_list_mtx.unlock();
 
 		break;
 	}

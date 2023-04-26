@@ -15,6 +15,8 @@ Game::Game()
 	//cout << "Game initialized!" << endl;
 	
 	sfml_window->setFramerateLimit(60);
+	cout << "Press Tab to move another input box" << endl;
+	cout << "Press Enter to connect" << endl;
 }
 
 Game::~Game()

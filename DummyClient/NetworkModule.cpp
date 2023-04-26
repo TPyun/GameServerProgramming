@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 19999;
+const static int MAX_TEST = 15000;
 
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
@@ -338,7 +338,7 @@ fail_to_connect:
 void Test_Thread()
 {
 	while (running) {
-		Sleep(max(30, global_delay));
+		//Sleep(max(30, global_delay));
 		Adjust_Number_Of_Client();
 
 		for (int i = 0; i < num_connections; ++i) {

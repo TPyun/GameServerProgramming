@@ -1,0 +1,15 @@
+Overllaped IO Callback: 1922
+Single Thread IOCP: 2049
+Multi Thread IOCP: 13329
+
+컴퓨터 사양: 
+CPU: i5-10400F 6core 2.9GHZ
+RAM: 2133MHZ 32GB
+GPU: RTX3070TI
+
+최적화 기법:
+시야처리를 했다.
+
+
+시야 처리 없을 때: 1169
+시야 처리 있을 때: 10100

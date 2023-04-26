@@ -338,7 +338,6 @@ fail_to_connect:
 void Test_Thread()
 {
 	while (true) {
-		Sleep(max(20, global_delay));
 		Adjust_Number_Of_Client();
 
 		for (int i = 0; i < num_connections; ++i) {
