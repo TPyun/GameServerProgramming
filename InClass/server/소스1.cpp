@@ -1239,8 +1239,6 @@ public:
 	}
 	OVER_EXP(char* packet)
 	{
-		cout << over_num++ << endl;
-		
 		_wsabuf.len = packet[0];
 		_wsabuf.buf = _send_buf;
 		ZeroMemory(&_over, sizeof(_over));
@@ -1249,7 +1247,6 @@ public:
 	}
 	~OVER_EXP()
 	{
-		cout << over_num-- << endl;
 	}
 };
 
@@ -1305,7 +1302,7 @@ public:
 		int retval = WSASend(_socket, &sdata->_wsabuf, 1, 0, 0, &sdata->_over, 0);
 		if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
 			cout << "WSASend Error" << endl;
-			//delete sdata;
+			delete sdata;
 		}
 		//cout << retval << endl;
 	}
@@ -1327,27 +1324,6 @@ public:
 
 	void send_remove_player_packet(int c_id)
 	{
-		_vl.lock();
-		if (_view_list.count(c_id) == 0) {
-			_vl.unlock();
-			return;
-		}
-		_vl.unlock();
-		
-		unordered_set <int> old_vl;
-		_vl.lock();
-		for (auto& cl : _view_list) {
-			if (cl == c_id) {
-				continue;
-			}
-			old_vl.insert(cl);
-		}
-		_view_list.clear();
-		for (auto& old_cl : old_vl) {
-			_view_list.insert(old_cl);
-		}
-		_vl.unlock();
-
 		SC_REMOVE_PLAYER_PACKET p;
 		p.id = c_id;
 		p.size = sizeof(p);
@@ -1363,35 +1339,18 @@ OVER_EXP g_a_over;
 
 void SESSION::send_move_packet(int c_id)
 {
-	_vl.lock();
-	if (_view_list.count(c_id) != 0) {
-		_vl.unlock();
-		SC_MOVE_PLAYER_PACKET p;
-		p.id = c_id;
-		p.size = sizeof(SC_MOVE_PLAYER_PACKET);
-		p.type = SC_MOVE_PLAYER;
-		p.x = clients[c_id].x;
-		p.y = clients[c_id].y;
-		p.move_time = clients[c_id]._last_move_time;
-		do_send(&p);
-	}
-	else {
-		_vl.unlock();
-		send_add_player_packet(c_id);
-	}
+	SC_MOVE_PLAYER_PACKET p;
+	p.id = c_id;
+	p.size = sizeof(SC_MOVE_PLAYER_PACKET);
+	p.type = SC_MOVE_PLAYER;
+	p.x = clients[c_id].x;
+	p.y = clients[c_id].y;
+	p.move_time = clients[c_id]._last_move_time;
+	do_send(&p);
 }
 
 void SESSION::send_add_player_packet(int c_id)
 {
-	_vl.lock();
-	if (_view_list.count(c_id) != 0) {
-		_vl.unlock();
-		send_move_packet(c_id);
-		return;
-	}
-	_view_list.insert(c_id);
-	_vl.unlock();
-
 	SC_ADD_PLAYER_PACKET add_packet;
 	add_packet.id = c_id;
 	strcpy_s(add_packet.name, clients[c_id]._name);
@@ -1459,6 +1418,8 @@ void process_packet(int c_id, char* packet)
 		clients[c_id].x = x;
 		clients[c_id].y = y;
 
+		clients[c_id].send_move_packet(c_id);
+
 		clients[c_id]._vl.lock();
 		auto old_vl = clients[c_id]._view_list;
 		clients[c_id]._vl.unlock();
@@ -1500,7 +1461,6 @@ void process_packet(int c_id, char* packet)
 			clients[c_id]._view_list.insert(new_one);
 		clients[c_id]._vl.unlock();
 
-		clients[c_id].send_move_packet(c_id);
 	}
 	}
 }

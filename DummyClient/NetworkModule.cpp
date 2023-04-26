@@ -126,58 +126,10 @@ void SendPacket(int cl, void* packet)
 
 void ProcessPacket(int ci, unsigned char packet[])
 {
-	//switch (packet[1]) {
-	//case SC_MOVE_PLAYER: {
-	//	SC_MOVE_PLAYER_PACKET* move_packet = reinterpret_cast<SC_MOVE_PLAYER_PACKET*>(packet);
-	//	if (move_packet->id < MAX_CLIENTS) {
-	//		int my_id = client_map[move_packet->id];
-	//		if (-1 != my_id) {
-	//			g_clients[my_id].x = move_packet->x;
-	//			g_clients[my_id].y = move_packet->y;
-	//		}
-	//		if (ci == my_id) {
-	//			if (0 != move_packet->move_time) {
-	//				auto d_ms = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - move_packet->move_time;
-
-	//				if (global_delay < d_ms) global_delay++;
-	//				else if (global_delay > d_ms) global_delay--;
-	//			}
-	//		}
-	//	}
-	//}
-	//				   break;
-	//case SC_ADD_PLAYER: break;
-	//case SC_REMOVE_PLAYER: break;
-	//case SC_LOGIN_INFO:
-	//{
-	//	g_clients[ci].connected = true;
-	//	active_clients++;
-	//	SC_LOGIN_INFO_PACKET* login_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
-	//	int my_id = ci;
-	//	client_map[login_packet->id] = my_id;
-	//	g_clients[my_id].id = login_packet->id;
-	//	g_clients[my_id].x = login_packet->x;
-	//	g_clients[my_id].y = login_packet->y;
-
-	//	//cs_packet_teleport t_packet;
-	//	//t_packet.size = sizeof(t_packet);
-	//	//t_packet.type = CS_TELEPORT;
-	//	//SendPacket(my_id, &t_packet);
-	//}
-	//break;
-	//default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
-	//	while (true);
-	//}
-
-
-	
 	switch (packet[1]) {
 	case P_SC_MOVE:
 	{
 		SC_MOVE_PACKET* move_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		/*int client_id = recv_packet->client_id;
-		game->players[client_id].position = recv_packet->position;*/
-
 		if (move_packet->client_id < MAX_CLIENTS) {
 			int my_id = client_map[move_packet->client_id];
 			if (-1 != my_id) {
@@ -197,19 +149,10 @@ void ProcessPacket(int ci, unsigned char packet[])
 	}
 	case P_SC_OUT:
 	{
-		/*SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->mtx.lock();
-		game->players.erase(client_id);
-		game->mtx.unlock();*/
 		break;
 	}
 	case P_SC_LOGIN:
 	{
-		/*SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
-		game->my_id = recv_packet->client_id;
-		game->players[game->my_id].position = recv_packet->position;
-		cout << "my id: " << game->my_id << endl;*/
 		g_clients[ci].connected = true;
 		active_clients++;
 		SC_LOGIN_PACKET* login_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
@@ -251,33 +194,33 @@ void Worker_Thread()
 		if (OP_RECV == over->event_type) {
 			//std::cout << "RECV from Client :" << ci;
 			//std::cout << "  IO_SIZE : " << io_size << std::endl;
-			unsigned char* buf = g_clients[ci].recv_over.IOCP_buf;
-			unsigned psize = g_clients[ci].curr_packet_size;
-			unsigned pr_size = g_clients[ci].prev_packet_data;
+			unsigned char* buf = g_clients[client_id].recv_over.IOCP_buf;
+			unsigned psize = g_clients[client_id].curr_packet_size;
+			unsigned pr_size = g_clients[client_id].prev_packet_data;
 			while (io_size > 0) {
 				if (0 == psize) psize = buf[0];
 				if (io_size + pr_size >= psize) {
 					// 지금 패킷 완성 가능
 					unsigned char packet[MAX_PACKET_SIZE];
-					memcpy(packet, g_clients[ci].packet_buf, pr_size);
+					memcpy(packet, g_clients[client_id].packet_buf, pr_size);
 					memcpy(packet + pr_size, buf, psize - pr_size);
-					ProcessPacket(static_cast<int>(ci), packet);
+					ProcessPacket(static_cast<int>(client_id), packet);
 					io_size -= psize - pr_size;
 					buf += psize - pr_size;
 					psize = 0; pr_size = 0;
 				}
 				else {
-					memcpy(g_clients[ci].packet_buf + pr_size, buf, io_size);
+					memcpy(g_clients[client_id].packet_buf + pr_size, buf, io_size);
 					pr_size += io_size;
 					io_size = 0;
 				}
 			}
-			g_clients[ci].curr_packet_size = psize;
-			g_clients[ci].prev_packet_data = pr_size;
+			g_clients[client_id].curr_packet_size = psize;
+			g_clients[client_id].prev_packet_data = pr_size;
 			DWORD recv_flag = 0;
 			int ret = WSARecv(g_clients[ci].client_socket,
-				&g_clients[ci].recv_over.wsabuf, 1,
-				NULL, &recv_flag, &g_clients[ci].recv_over.over, NULL);
+				&g_clients[client_id].recv_over.wsabuf, 1,
+				NULL, &recv_flag, &g_clients[client_id].recv_over.over, NULL);
 			if (SOCKET_ERROR == ret) {
 				int err_no = WSAGetLastError();
 				if (err_no != WSA_IO_PENDING)
@@ -417,7 +360,6 @@ void Test_Thread()
 	}
 	for (auto& client : g_clients) {
 		if (client.id == -1) continue;
-		Sleep(10);
 		DisconnectClient(client.id);
 	}
 }

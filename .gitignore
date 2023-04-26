@@ -39,6 +39,11 @@ Server/x64/Release
 Client/x64/Debug
 Client/x64/Release
 
+DummyClient/x64/Debug
+DummyClient/x64/Release
+
+
+
 InClass/Server/x64/Debug
 InClass/Server/x64/Release
 
@@ -48,5 +53,11 @@ InClass/Client/x64/Release
 InClass/DummyClient/x64/Debug
 InClass/DummyClient/x64/Release
 
-DummyClient/x64/Debug
-DummyClient/x64/Release
+Overlapped_IO_Callback/x64/Debug
+Overlapped_IO_Callback/x64/Release
+
+IOCP_Single_Thread/x64/Debug
+IOCP_Single_Thread/x64/Release
+
+IOCP_Muti_Thread/x64/Debug
+IOCP_Muti_Thread/x64/Release

@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 1000;
+const static int MAX_TEST = 20000;
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
 const static int MAX_PACKET_SIZE = 255;
@@ -138,7 +138,6 @@ void ProcessPacket(int ci, unsigned char packet[])
 			if (ci == my_id) {
 				if (0 != move_packet->move_time) {
 					auto d_ms = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - move_packet->move_time;
-
 					if (global_delay < d_ms) global_delay++;
 					else if (global_delay > d_ms) global_delay--;
 				}
@@ -196,33 +195,33 @@ void Worker_Thread()
 		if (OP_RECV == over->event_type) {
 			//std::cout << "RECV from Client :" << ci;
 			//std::cout << "  IO_SIZE : " << io_size << std::endl;
-			unsigned char* buf = g_clients[ci].recv_over.IOCP_buf;
-			unsigned psize = g_clients[ci].curr_packet_size;
-			unsigned pr_size = g_clients[ci].prev_packet_data;
+			unsigned char* buf = g_clients[client_id].recv_over.IOCP_buf;
+			unsigned psize = g_clients[client_id].curr_packet_size;
+			unsigned pr_size = g_clients[client_id].prev_packet_data;
 			while (io_size > 0) {
 				if (0 == psize) psize = buf[0];
 				if (io_size + pr_size >= psize) {
 					// 지금 패킷 완성 가능
 					unsigned char packet[MAX_PACKET_SIZE];
-					memcpy(packet, g_clients[ci].packet_buf, pr_size);
+					memcpy(packet, g_clients[client_id].packet_buf, pr_size);
 					memcpy(packet + pr_size, buf, psize - pr_size);
-					ProcessPacket(static_cast<int>(ci), packet);
+					ProcessPacket(static_cast<int>(client_id), packet);
 					io_size -= psize - pr_size;
 					buf += psize - pr_size;
 					psize = 0; pr_size = 0;
 				}
 				else {
-					memcpy(g_clients[ci].packet_buf + pr_size, buf, io_size);
+					memcpy(g_clients[client_id].packet_buf + pr_size, buf, io_size);
 					pr_size += io_size;
 					io_size = 0;
 				}
 			}
-			g_clients[ci].curr_packet_size = psize;
-			g_clients[ci].prev_packet_data = pr_size;
+			g_clients[client_id].curr_packet_size = psize;
+			g_clients[client_id].prev_packet_data = pr_size;
 			DWORD recv_flag = 0;
-			int ret = WSARecv(g_clients[ci].client_socket,
-				&g_clients[ci].recv_over.wsabuf, 1,
-				NULL, &recv_flag, &g_clients[ci].recv_over.over, NULL);
+			int ret = WSARecv(g_clients[client_id].client_socket,
+				&g_clients[client_id].recv_over.wsabuf, 1,
+				NULL, &recv_flag, &g_clients[client_id].recv_over.over, NULL);
 			if (SOCKET_ERROR == ret) {
 				int err_no = WSAGetLastError();
 				if (err_no != WSA_IO_PENDING)
@@ -341,7 +340,7 @@ fail_to_connect:
 void Test_Thread()
 {
 	while (true) {
-		//Sleep(max(20, global_delay));
+		Sleep(max(20, global_delay));
 		Adjust_Number_Of_Client();
 
 		for (int i = 0; i < num_connections; ++i) {
