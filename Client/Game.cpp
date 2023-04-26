@@ -12,7 +12,7 @@ Game::Game()
 	if (!sfml_font.loadFromFile("arial.ttf")) {
 		cout << "Could not load font!" << endl;
 	}
-	cout << "Game initialized!" << endl;
+	//cout << "Game initialized!" << endl;
 	
 	sfml_window->setFramerateLimit(60);
 }
@@ -29,12 +29,12 @@ void Game::update()
 	if (input){
 		if (sfml_event.type == sf::Event::Closed || (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Escape)) {
 			if (scene == 0) {
-				std::cout << "Game closed!" << std::endl;
+				//std::cout << "Game closed!" << std::endl;
 				isRunning = false;
 				return;
 			}
 			else if (scene == 1) {
-				cout << "Disconnected!" << endl;
+				//cout << "Disconnected!" << endl;
 				connected = false;
 				return;
 			}
@@ -85,7 +85,7 @@ void Game::draw_main()
 void Game::main_handle_events()
 {
 	if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Backspace && text_input.size()) {
-		cout << "Back" << endl;
+		//cout << "Back" << endl;
 		text_input.pop_back();
 		if (input_height == 130) {
 			strcpy(ip_address, text_input.c_str());
@@ -95,7 +95,7 @@ void Game::main_handle_events()
 		}
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
-		cout << "Tab" << endl;
+		//cout << "Tab" << endl;
 		if (input_height == 330) {
 			input_height = 130;
 		}
@@ -108,7 +108,7 @@ void Game::main_handle_events()
 		try_connect = true;
 	}
 	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 20) {
-		cout << "Typing: " << static_cast<char>(sfml_event.text.unicode) << endl;
+		//cout << "Typing: " << static_cast<char>(sfml_event.text.unicode) << endl;
 		// Only add ASCII characters
 		if (static_cast<char>(sfml_event.text.unicode) > 30) {		//지우는거랑 엔터 안먹히게 제한
 			text_input += static_cast<char>(sfml_event.text.unicode);
@@ -131,6 +131,8 @@ void Game::initialize_ingame()
 {
 	information_mode = false;
 	scene = 1;
+	cout << "You can move with direction keys." << endl;
+	cout << "Press Tab to see information." << endl;
 }
 
 void Game::draw_game()
@@ -175,15 +177,33 @@ void Game::draw_game()
 void Game::draw_information()
 {
 	//draw player list
-	draw_sfml_rect(TI{ 5, 10 }, TI{ 130, 600 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, 730 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
 	int information_height = 0;
-	draw_sfml_text_s(TI{ 10, 10 + information_height++ * 20 },"Ping: "+ std::to_string(ping), sf::Color(0, 0, 0), 17);
-	draw_sfml_text_s(TI{ 10, 10 + information_height++ * 20 }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].position.x) + ", " + std::to_string(players[my_id].position.y), sf::Color(0, 0, 0), 17);
+	draw_sfml_text_s(TI{ 15, 10 + information_height++ * 20 },"Ping: "+ std::to_string(ping), sf::Color::Black, 17);
+	draw_sfml_text_s(TI{ 15, 10 + information_height++ * 20 }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].position.x) + ", " + std::to_string(players[my_id].position.y), sf::Color::Black, 17);
 	for (auto& player : players) {
 		if (player.first == my_id)
 			continue;
-		draw_sfml_text_s(TI{ 10, 10 + information_height++ * 20 }, std::to_string(player.first) + ": " + std::to_string(player.second.position.x) + ", " + std::to_string(player.second.position.y), sf::Color(250, 0, 0), 17);
+		draw_sfml_text_s(TI{ 15, 10 + information_height++ * 20 }, std::to_string(player.first) + ": " + std::to_string(player.second.position.x) + ", " + std::to_string(player.second.position.y), sf::Color::Red, 17);
 	}
+
+	//draw map
+	int minimap_frame_size = 590;
+	TI minimap_frame_start_point{ 150, 10 };
+	int minimap_offset = 50;
+	TI minimap_start_point{ minimap_frame_start_point.x + minimap_offset / 2, minimap_frame_start_point.y + minimap_offset  / 2};
+	TI minimap_size{ minimap_frame_size - minimap_offset, minimap_frame_size - minimap_offset };
+	draw_sfml_rect(minimap_frame_start_point, TI{ minimap_frame_size, minimap_frame_size }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));	//mini map frame
+	draw_sfml_rect(minimap_start_point, minimap_size, sf::Color::Black, sf::Color::Black);	//mini map
+	for (auto& player : players) {
+		TI player_pos_minimap{ player.second.position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x, player.second.position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y };
+		if (player.first == my_id)
+			continue;
+		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red);	//other position on mini map
+	}
+	TI player_pos_minimap{ players[my_id].position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x,  players[my_id].position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y};
+	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White);	//my position on mini map
+
 }
 
 void Game::game_handle_events()

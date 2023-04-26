@@ -3,6 +3,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <unordered_set>
 #include <concurrent_unordered_set.h>
 #include "Player.h"
@@ -929,6 +930,7 @@ SOCKET global_client_socket;
 SOCKET global_server_socket;
 TI randomly_spawn_player();
 void disconnect(int);
+atomic<int> connected_players = 0;
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
 class SESSION {
@@ -940,7 +942,6 @@ public:
 	unsigned int prev_time;
 	int	remain_data;
 	Player player;
-	unsigned char district;
 	
 	SESSION_STATE state;
 	mutex state_mtx;
@@ -953,7 +954,6 @@ public:
 		client_id = -1;
 		prev_time = 0;
 		remain_data = 0;
-		district = 0;
 	}
 	~SESSION() {}
 
@@ -967,7 +967,7 @@ public:
 		if (0 != ret) {
 			int err_no = WSAGetLastError();
 			if (WSA_IO_PENDING != err_no) {
-				cout << "WSARecv Error : " << err_no << " Client: " << client_id << endl;
+				//cout << "WSARecv Error : " << err_no << " Client: " << client_id << endl;
 				bool is_ingame = false;
 				{
 					lock_guard<mutex> m{ state_mtx };
@@ -985,15 +985,15 @@ public:
 		if (0 != ret) {
 			int err_no = WSAGetLastError();
 			if (WSA_IO_PENDING != err_no) {
-				cout << "WSASend Error : " << err_no << " Client: " << client_id << endl;
+				//cout << "WSASend Error : " << err_no << " Client: " << client_id << endl;
 				delete send_over;
-				bool is_ingame = false;
+				/*bool is_ingame = false;
 				{
 					lock_guard<mutex> m{ state_mtx };
 					if (state == INGAME) is_ingame = true;
 				}
 				if(is_ingame)
-					disconnect(client_id);
+					disconnect(client_id);*/
 			}
 		}
 	}
@@ -1009,6 +1009,9 @@ array<SESSION, MAX_USER> clients;
 
 void SESSION::send_login_packet()
 {
+	connected_players.fetch_add(1);
+	cout << connected_players << endl;
+
 	player.position = randomly_spawn_player();
 	SC_LOGIN_PACKET packet;
 	packet.client_id = client_id;
@@ -1067,6 +1070,9 @@ void disconnect(int client_id)
 		if (client.state == INGAME) remain++;
 	}
 	cout << "REMAIN: " << remain << endl;
+	
+	connected_players.fetch_sub(1);
+	cout << connected_players << endl;
 }
 
 TI randomly_spawn_player()
@@ -1113,12 +1119,16 @@ void process_packet(int client_id, char* packet)
 		unordered_set<int> old_view_list = moved_client->view_list;	//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
 		
+		int num_clients = 0;
 		for (auto& client : clients) {	
+			if (++num_clients > connected_players.load()) break;
+			
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
 				if (client.state != INGAME) continue;
 			}
 			if (client.client_id == client_id) continue;
+			
 			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client.client_id);			//new list 채우기
 			}
@@ -1156,7 +1166,10 @@ void process_packet(int client_id, char* packet)
 			lock_guard<mutex> m{ clients[client_id].state_mtx };
 			clients[client_id].state = INGAME;
 		}
+		int num_clients = 0;
 		for (auto& old_client : clients) {	
+			if (++num_clients > connected_players.load()) break;
+			
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
 				if (old_client.state != INGAME) continue;
@@ -1187,11 +1200,11 @@ void work_thread(HANDLE h_iocp)
 		OVER_EXP* ex_over = reinterpret_cast<OVER_EXP*>(over);
 		//cout << "ID: " << key << " TYPE: " << ex_over->completion_type << " Byte:" << num_bytes << endl;
 		if (FALSE == ret) {
-			cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
+			//cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
 			if (ex_over->completion_type == OP_ACCEPT) cout << "Accept Error";
 			else {
 				if (ex_over->completion_type == OP_SEND) {
-					cout << "Delete ex over" << endl;
+					//cout << "Delete ex over" << endl;
 					delete ex_over;
 				}
 				disconnect(static_cast<int>(key));
@@ -1200,9 +1213,9 @@ void work_thread(HANDLE h_iocp)
 		}
 
 		if (0 == num_bytes && ex_over->completion_type != OP_ACCEPT) {
-			cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
+			//cout << "GQCS Error on client[" << key << "] " << "COMP TYPE: " << ex_over->completion_type << "\n";
 			if (ex_over->completion_type == OP_SEND) {
-				cout << "Delete ex over" << endl;
+				//cout << "Delete ex over" << endl;
 				delete ex_over;
 			}
 			disconnect(static_cast<int>(key));

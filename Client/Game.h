@@ -25,6 +25,7 @@ public:
 	std::mutex mtx;
 
 	char ip_address[100] = "127.0.0.1";
+	//char ip_address[100] = "192.168.0.8";
 	char Port[100] = "9000";
 	bool try_connect = false;
 	bool connected = false;

@@ -8,7 +8,7 @@
 #define SERVER_PORT 9000
 
 constexpr int BUFSIZE = 1000;
-constexpr int MAX_USER = 10000;
+constexpr int MAX_USER = 20000;
 
 constexpr int WIDTH = 750;	//Client
 constexpr int HEIGHT = 750;	//Client
@@ -36,6 +36,12 @@ typedef struct two_uints {
 	unsigned int x;
 	unsigned int y;
 } TUI;
+
+typedef struct two_uchar {
+	unsigned char x;
+	unsigned char y;
+} TUC;
+
 
 typedef struct two_floats {
 	float x;
