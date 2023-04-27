@@ -12,7 +12,18 @@ Game::Game()
 	if (!sfml_font.loadFromFile("arial.ttf")) {
 		cout << "Could not load font!" << endl;
 	}
-	//cout << "Game initialized!" << endl;
+	
+	//draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 90 , HEIGHT / 2 - players[my_id].size.y / 2 }, "Loading Game", sf::Color::White, 30);
+	//render();
+	
+	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png"};
+	for (int act = 0; act < 6; act++) {
+		char player_tex_root[30] = "Texture/Player/";
+		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
+			cout << "Image not loaded!" << endl;
+		else
+			player_sprite[act].setTexture(player_texture[act]);
+	}
 	
 	sfml_window->setFramerateLimit(60);
 	cout << "Press Tab to move another input box" << endl;
@@ -44,14 +55,14 @@ void Game::update()
 	}
 
 	if (scene == 0) {
-		draw_main();
 		if (input)
 			main_handle_events();
+		draw_main();
 	}
 	else if (scene == 1) {
-		draw_game();
 		if (input)
 			game_handle_events();
+		draw_game();
 	}
 }
 
@@ -124,9 +135,9 @@ void Game::main_handle_events()
 	}
 }
 
-TI Game::get_relative_location(TI position, TI size)
+TI Game::get_relative_location(TI position)
 {
-	return TI{ (WIDTH / 2) - (size.x / 2) + (position.x - players[my_id].position.x) * BLOCK_SIZE, (HEIGHT / 2) - (size.y / 2) + (position.y - players[my_id].position.y) * BLOCK_SIZE };
+	return TI{ (WIDTH / 2) + (position.x - players[my_id].position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].position.y) * BLOCK_SIZE };
 }
 
 void Game::initialize_ingame()
@@ -162,18 +173,39 @@ void Game::draw_game()
 	for (auto& player : players) {
 		if (player.first == my_id)
 			continue;
-		color = sf::Color(200, 0, 0);
-		draw_sfml_rect(get_relative_location(player.second.position, player.second.size), player.second.size, color, color);								//draw client
-		draw_sfml_text_s(get_relative_location(player.second.position, player.second.size), std::to_string(player.first), sf::Color(255, 255, 255), 9);	//draw id of clients
+		//draw_sfml_rect(get_relative_location(player.second.position, player.second.size), player.second.size, color, color);
+		draw_sprite(player_sprite[1], player.first, sf::Color::Red, 3);	//Walk
+		TI related_pos = get_relative_location(player.second.position);
+		draw_sfml_text_s({ related_pos.x - 15, related_pos.y - 90}, std::to_string(player.first), sf::Color(255, 255, 255), 12);
 	}
 	mtx.unlock();
 	
-	color = sf::Color(0, 0, 0);
-	draw_sfml_rect(TI{ WIDTH / 2 - players[my_id].size.x / 2 , HEIGHT / 2  - players[my_id].size.y / 2 }, players[my_id].size, color, color);						//draw me
-	draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2, HEIGHT / 2 - players[my_id].size.y / 2 }, std::to_string(my_id), sf::Color(255, 255, 255), 9);	//draw number of me
-
+	//draw_sfml_rect(TI{ WIDTH / 2 - players[my_id].size.x / 2 , HEIGHT / 2  - players[my_id].size.y / 2 }, players[my_id].size, color, color);
+	draw_sprite(player_sprite[1], my_id, sf::Color::White, 3);	//Walk
+	draw_sfml_text_s(TI{ WIDTH / 2 - 15, HEIGHT / 2 - 90}, std::to_string(my_id), sf::Color(255, 255, 255), 12);
+	
 	if(information_mode)
 		draw_information();
+}
+
+void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
+{
+	TUC sprite_size{ 16,24 };
+	char sprite_length = 4;
+	sprite.setColor(color);
+	TI position{};
+	if (id == my_id)
+		position = TI{ WIDTH / 2, HEIGHT / 2 };
+	else
+		position = get_relative_location(players[id].position);
+	Direction direction = players[id].direction;
+	unsigned char sprite_i = players[id].sprite_iter;
+	sprite.setPosition(position.x - (sprite_size.x * size) / 2, position.y - (sprite_size.y * size));
+	sprite.setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
+	sprite.setScale(size, size);
+	sfml_window->draw(sprite);
+
+	players[id].sprite_iter++;
 }
 
 void Game::draw_information()
@@ -210,10 +242,10 @@ void Game::draw_information()
 
 void Game::game_handle_events()
 {
+	ZeroMemory(&key_input, sizeof(KS));
 	if (sfml_event.type == sf::Event::KeyPressed) {
 		if (!move_flag) {
 			bool move = false;
-			ZeroMemory(&key_input, sizeof(KS));
 			if (sfml_event.key.code == sf::Keyboard::Up) {
 				key_input.up = true;
 				move = true;
@@ -271,4 +303,3 @@ void Game::draw_sfml_rect(TI position, TI size, sf::Color color, sf::Color fill_
 	rect.setFillColor(fill_color);
 	sfml_window->draw(rect);
 }
-

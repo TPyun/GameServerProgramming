@@ -153,7 +153,6 @@
   <ItemGroup>
     <ClInclude Include="..\Protocol.h" />
     <ClInclude Include="Game.h" />
-    <ClInclude Include="Global.h" />
     <ClInclude Include="Network.h" />
     <ClInclude Include="Player.h" />
   </ItemGroup>

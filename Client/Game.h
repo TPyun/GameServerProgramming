@@ -38,19 +38,21 @@ private:
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
-	
+	void draw_sprite(sf::Sprite, int, sf::Color, char);
+
 	void draw_main();
 	void main_handle_events();
 	void draw_game();
 	void draw_information();
 	void game_handle_events();
-	TI get_relative_location(TI, TI);
+	TI get_relative_location(TI);
 	
 	sf::RenderWindow* sfml_window;
 	sf::Font sfml_font;
 	sf::Event sfml_event{};
 	sf::Text sfml_text;
-
+	sf::Texture player_texture[6];
+	sf::Sprite player_sprite[6];
 	TI window_size{ WIDTH, HEIGHT };
 
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };

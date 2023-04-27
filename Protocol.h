@@ -13,9 +13,9 @@ constexpr int MAX_USER = 20000;
 constexpr int WIDTH = 750;	//Client
 constexpr int HEIGHT = 750;	//Client
 
-constexpr int MAP_SIZE = 400;		//Server
+constexpr int MAP_SIZE = 2000;		//Server
 
-constexpr int CLIENT_RANGE = 11;		//Client
+constexpr int CLIENT_RANGE = 25;		//Client
 constexpr int VIEW_RANGE = (CLIENT_RANGE - 1) / 2;	//Server
 
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both

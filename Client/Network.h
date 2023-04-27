@@ -107,6 +107,26 @@ void process_packet(char* packet)
 	{
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
+		if(game->players[client_id].position.x < recv_packet->position.x){
+			game->players[client_id].direction = RIGHT;
+			game->players[client_id].state = MOVE;
+		}
+		else if (game->players[client_id].position.x > recv_packet->position.x){
+			game->players[client_id].direction = LEFT; 
+			game->players[client_id].state = MOVE;
+		}
+		else if (game->players[client_id].position.y > recv_packet->position.y){
+			game->players[client_id].direction = UP; 
+			game->players[client_id].state = MOVE;
+		}
+		else if (game->players[client_id].position.y < recv_packet->position.y) {
+			game->players[client_id].direction = DOWN;
+			game->players[client_id].state = MOVE;
+		}
+		else{
+			game->players[client_id].direction = DOWN;
+			game->players[client_id].state = IDLE;
+		}
 		game->players[client_id].position.x = recv_packet->position.x;
 		game->players[client_id].position.y = recv_packet->position.y;
 		if (client_id == game->my_id)
