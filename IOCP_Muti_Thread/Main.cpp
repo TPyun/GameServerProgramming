@@ -3,20 +3,40 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include<chrono>
 #include <atomic>
 #include <unordered_set>
+#include <queue>
 #include "Player.h"
-
 using namespace std;
-//ICOP Multi Thread 
-enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND };
+
+HANDLE h_iocp;
+
+enum EVENT_TYPE { MOVE, ATTACK };
+class EVENT {
+public:
+	int object_id;
+	EVENT_TYPE type;
+	chrono::system_clock::time_point exec_time;
+
+	EVENT(int id, EVENT_TYPE t, chrono::system_clock::time_point tp) : object_id(id), type(t), exec_time(tp) {}
+	~EVENT() {}
+	bool operator < (const EVENT& e) const
+	{
+		return exec_time > e.exec_time;
+	}
+};
+priority_queue<EVENT> timer_queue;
+mutex timer_mtx;
+
+enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_AI };
 class OVER_EXP {
 public:
 	WSAOVERLAPPED over;	//클래스의 맨 첫번째에 있어야만 함. 이거를 가지고 클래스 포인터 위치 찾을거임
 	WSABUF wsa_buf;
 	char data[BUFSIZE];
 	COMPLETION_TYPE completion_type;
-
+	EVENT_TYPE event_type;
 	OVER_EXP()				//Recv
 	{
 		wsa_buf.len = BUFSIZE;
@@ -40,6 +60,8 @@ SOCKET global_client_socket;
 SOCKET global_server_socket;
 TI randomly_spawn_player();
 void disconnect(int);
+void move_npc(int);
+void call_npc(int);
 atomic <int> player_count = 0;
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
@@ -100,8 +122,7 @@ public:
 	void insert_view_list(int);
 	void erase_view_list(int);
 };
-
-array<SESSION, MAX_USER> clients;
+array<SESSION, MAX_USER + MAX_NPC> clients;
 
 void SESSION::send_login_packet()
 {
@@ -209,16 +230,16 @@ void process_packet(int client_id, char* packet)
 		moved_client->view_list_mtx.lock();
 		unordered_set<int> old_view_list = moved_client->view_list;	//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
-		
-		for (auto& client : clients) {
+
+		for (int user_id = 0; user_id < MAX_USER; user_id++) {
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
-				if (client.state != INGAME) continue;
+				if (clients[user_id].state != INGAME) continue;
 			}
-			if (client.client_id == client_id) continue;
+			if (clients[user_id].client_id == client_id) continue;
 
-			if (in_eyesight(client_id, client.client_id)) {	//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(client.client_id);			//new list 채우기
+			if (in_eyesight(client_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(clients[user_id].client_id);			//new list 채우기
 			}
 		}
 		for (auto& new_one : new_view_list) {
@@ -235,9 +256,9 @@ void process_packet(int client_id, char* packet)
 				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
 				moved_client->erase_view_list(old_one);		//뷰 리스트에서 삭제
 				clients[old_one].erase_view_list(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
-			}	
+			}
 		}
-		
+
 		break;
 	}
 	case P_CS_LOGIN:
@@ -250,7 +271,7 @@ void process_packet(int client_id, char* packet)
 			clients[client_id].state = INGAME;
 		}
 
-		for (auto& old_client : clients) {	
+		for (auto& old_client : clients) {
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
 				if (old_client.state != INGAME) continue;
@@ -271,7 +292,7 @@ void process_packet(int client_id, char* packet)
 	}
 }
 
-void work_thread(HANDLE h_iocp)
+void work_thread()
 {
 	while (true) {
 		DWORD num_bytes{};
@@ -357,8 +378,133 @@ void work_thread(HANDLE h_iocp)
 			AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 			break;
 		}
+		case OP_AI: {
+			EVENT_TYPE event = ex_over->event_type;
+
+			move_npc(static_cast<int>(key));
+			delete ex_over;
+			break;
+		}
 		default: cout << "Unknown Completion Type" << endl; break;
 		}
+	}
+}
+
+void spawn_npc()
+{
+	auto start_t = chrono::system_clock::now();
+	for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {
+		clients[npc_id].client_id = npc_id;
+		clients[npc_id].view_list.clear();
+		clients[npc_id].state = INGAME;
+		clients[npc_id].player.position = randomly_spawn_player();
+
+		EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(npc_id - MAX_USER + 1));
+		timer_mtx.lock();
+		timer_queue.push(event);
+		timer_mtx.unlock();
+
+	}
+	auto end_t = chrono::system_clock::now();
+	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
+	cout << "NPC spawn time : " << duration.count() << " ms" << endl;
+}
+
+void move_npc(int npc_id)
+{
+	//cout << "move npc "<< npc_id << endl;
+	bool skip_ai = true;
+	for (int user_id = 0; user_id < MAX_USER; ++user_id) {	//움직이기 전에 시야처리 해서 시야에 있는 유저가 있으면 움직임
+		{
+			lock_guard<mutex> m(clients[user_id].state_mtx);
+			if (clients[user_id].state != INGAME) continue;
+		}
+		if (true == in_eyesight(npc_id, user_id)) {
+			skip_ai = false;
+			break;
+		}
+	}
+	if (true == skip_ai) {
+		/*EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(10));
+		timer_mtx.lock();
+		timer_queue.push(event);
+		timer_mtx.unlock();*/
+		return;
+	}
+	//cout << "move_npc" << npc_id << endl;
+	SESSION* moved_npc = &clients[npc_id];
+	int direction = rand() % 4;
+	switch (direction)
+	{
+	case 0: moved_npc->player.key_input.up = true; break;
+	case 1: moved_npc->player.key_input.down = true; break;
+	case 2: moved_npc->player.key_input.left = true; break;
+	case 3: moved_npc->player.key_input.right = true; break;
+	}
+	moved_npc->player.key_check();
+	
+	unordered_set<int> new_view_list;	//새로 업데이트 할 뷰 리스트
+	moved_npc->view_list_mtx.lock();
+	unordered_set<int> old_view_list = moved_npc->view_list;	//이전 뷰 리스트 복사
+	moved_npc->view_list_mtx.unlock();
+
+	for (int user_id = 0; user_id < MAX_USER; ++user_id) {		//유저만 검색
+		{
+			lock_guard<mutex> m(clients[user_id].state_mtx);
+			if (clients[user_id].state != INGAME) continue;
+		}
+		//if (clients[i].client_id == npc_id) continue;
+		if (in_eyesight(npc_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
+			new_view_list.insert(clients[user_id].client_id);			//new list 채우기
+			}
+	}
+	for (auto& new_one : new_view_list) {
+		clients[new_one].send_move_packet(npc_id);
+		cout << "move packet" << endl;
+		if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
+			clients[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			moved_npc->insert_view_list(new_one);		//뷰 리스트에 추가
+		}
+	}
+	for (auto& old_one : old_view_list) {
+		if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
+			clients[old_one].send_out_packet(npc_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+			moved_npc->erase_view_list(old_one);		//뷰 리스트에서 삭제
+			clients[old_one].erase_view_list(npc_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+		}
+	}
+
+	EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(10));
+	timer_mtx.lock();
+	timer_queue.push(event);
+	timer_mtx.unlock();
+}
+
+void do_timer()
+{
+	while (1) {
+		timer_mtx.lock();
+		if (timer_queue.size() == 0) {
+			timer_mtx.unlock();
+			this_thread::sleep_for(10ms);
+			continue;
+		}
+		timer_mtx.unlock();
+
+		auto event = timer_queue.top();					//맨 위에 있는거 꺼내서
+		if (event.exec_time > chrono::system_clock::now()) {	//지금 시간보다 크면 
+			this_thread::sleep_for(10ms);				//더 기다리고 아니면 실행
+			continue;
+		}
+		
+		timer_mtx.lock();
+		timer_queue.pop();
+		timer_mtx.unlock();
+
+		OVER_EXP* over = new OVER_EXP();
+		over->event_type = event.type;
+		over->completion_type = OP_AI;
+		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
 	}
 }
 
@@ -380,20 +526,27 @@ int main()
 	SOCKADDR_IN client_addr;
 	int addr_size = sizeof(client_addr);
 	//IOCP 생성 (마지막 인자 0은 코어 개수만큼 사용)
-	HANDLE h_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	h_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
 	//먼저 IOCP 생성한걸 ExistingCompletionPort에 넣어줌. key는 임의로 아무거나. 마지막 것은 무시
 	CreateIoCompletionPort(reinterpret_cast<HANDLE>(global_server_socket), h_iocp, 9999, 0);
 	global_client_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 	global_accept_over.completion_type = OP_ACCEPT;
 	AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
-
+	
+	spawn_npc();
+	thread timer{ do_timer };
+	//thread ai_thread{ do_ai, h_iocp };
+	
 	vector <thread> worker_threads;
 	int num_threads = thread::hardware_concurrency();
 	for (int i = 0; i < num_threads; ++i)
-		worker_threads.emplace_back(work_thread, h_iocp);
+		worker_threads.emplace_back(work_thread);
 	for (auto& th : worker_threads)
 		th.join();
 
+	//ai_thread.join();
+	timer.join();
+	
 	closesocket(global_server_socket);
 	WSACleanup();
 }
