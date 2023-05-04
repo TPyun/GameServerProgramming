@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <chrono>
+#include <stdlib.h>
 #include "Player.h"
 
 class Game
@@ -39,11 +40,12 @@ private:
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
 	void draw_sprite(sf::Sprite, int, sf::Color, char);
-
+	
 	void draw_main();
 	void main_handle_events();
 	void draw_game();
 	void draw_information();
+	void draw_chat();
 	void game_handle_events();
 	TI get_relative_location(TI);
 	
@@ -53,11 +55,12 @@ private:
 	sf::Text sfml_text;
 	sf::Texture player_texture[6];
 	sf::Sprite player_sprite[6];
-	TI window_size{ WIDTH, HEIGHT };
 
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
 	bool isRunning = true;
 	bool information_mode = false;
+	bool chat_mode = false;
+	
 	
 	//main scene
 	int input_height = 130;

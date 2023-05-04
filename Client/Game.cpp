@@ -3,9 +3,10 @@
 #include "Game.h"
 
 using namespace std;
+
 Game::Game()
 {
-	sfml_window = new sf::RenderWindow(sf::VideoMode(window_size.x, window_size.y), "SFML window");
+	sfml_window = new sf::RenderWindow(sf::VideoMode(WIDTH, HEIGHT), "SFML window");
 	if (sfml_window == NULL) {
 		cout << "Could not create SFML window!" << endl;
 	}
@@ -16,16 +17,18 @@ Game::Game()
 	//draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 90 , HEIGHT / 2 - players[my_id].size.y / 2 }, "Loading Game", sf::Color::White, 30);
 	//render();
 	
-	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png"};
+	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png" };
 	for (int act = 0; act < 6; act++) {
 		char player_tex_root[30] = "Texture/Player/";
 		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
 			cout << "Image not loaded!" << endl;
-		else
+		else {
+			player_texture->setSmooth(true);
 			player_sprite[act].setTexture(player_texture[act]);
+		}
 	}
 	
-	sfml_window->setFramerateLimit(60);
+	sfml_window->setFramerateLimit(120);
 	cout << "Press Tab to move another input box" << endl;
 	cout << "Press Enter to connect" << endl;
 }
@@ -143,6 +146,8 @@ TI Game::get_relative_location(TI position)
 void Game::initialize_ingame()
 {
 	information_mode = false;
+	chat_mode = false;
+
 	scene = 1;
 	cout << "You can move with direction keys." << endl;
 	cout << "Press Tab to see information." << endl;
@@ -155,8 +160,8 @@ void Game::draw_game()
 	TI chess_board_pixel_position;
 	for (int i = 0; i < CLIENT_RANGE; i++) {
 		for (int j = 0; j < CLIENT_RANGE; j++) {
-			chess_board_pixel_position.x = i * BLOCK_SIZE +1;
-			chess_board_pixel_position.y = j * BLOCK_SIZE +1;
+			chess_board_pixel_position.x = i * BLOCK_SIZE;
+			chess_board_pixel_position.y = j * BLOCK_SIZE;
 			sf::Color color(100, 50, 0);
 			if ((players[my_id].position.x + i + players[my_id].position.y + j) % 2 == 0) {
 				color = sf::Color(170, 170, 170);
@@ -166,26 +171,28 @@ void Game::draw_game()
 			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
 		}
 	}
-
-	//draw player
-	sf::Color color;
-	mtx.lock();
-	for (auto& player : players) {
-		if (player.first == my_id)
-			continue;
-		//draw_sfml_rect(get_relative_location(player.second.position, player.second.size), player.second.size, color, color);
-		draw_sprite(player_sprite[1], player.first, sf::Color::Red, 3);	//Walk
-		TI related_pos = get_relative_location(player.second.position);
-		draw_sfml_text_s({ related_pos.x - 15, related_pos.y - 90}, std::to_string(player.first), sf::Color(255, 255, 255), 12);
-	}
-	mtx.unlock();
 	
-	//draw_sfml_rect(TI{ WIDTH / 2 - players[my_id].size.x / 2 , HEIGHT / 2  - players[my_id].size.y / 2 }, players[my_id].size, color, color);
-	draw_sprite(player_sprite[1], my_id, sf::Color::White, 3);	//Walk
-	draw_sfml_text_s(TI{ WIDTH / 2 - 15, HEIGHT / 2 - 90}, std::to_string(my_id), sf::Color(255, 255, 255), 12);
+	// Sort the players by their Y position using qsort and a lambda function
+	mtx.lock();
+	std::vector<std::pair<int, Player>> sorted_players(players.begin(), players.end());
+	mtx.unlock();
+	qsort(sorted_players.data(), sorted_players.size(), sizeof(std::pair<int, Player>), [](const void* a, const void* b) {
+		const auto& player1 = *reinterpret_cast<const std::pair<int, Player>*>(a);
+	const auto& player2 = *reinterpret_cast<const std::pair<int, Player>*>(b);
+	return player1.second.position.y - player2.second.position.y;
+		});
+
+	// Draw the players in sorted order
+	for (const auto& player : sorted_players) {
+		draw_sprite(player_sprite[1], player.first, sf::Color::White, 3); // Walk
+		TI related_pos = get_relative_location(player.second.position);
+		draw_sfml_text_s({ related_pos.x - (int)std::to_string(player.first).length() * 4, related_pos.y - 90 }, std::to_string(player.first), sf::Color::White, 14);
+	}
 	
 	if(information_mode)
 		draw_information();
+	if (chat_mode)
+		draw_chat();
 }
 
 void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
@@ -200,7 +207,7 @@ void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
 		position = get_relative_location(players[id].position);
 	Direction direction = players[id].direction;
 	unsigned char sprite_i = players[id].sprite_iter;
-	sprite.setPosition(position.x - (sprite_size.x * size) / 2, position.y - (sprite_size.y * size));
+	sprite.setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
 	sprite.setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
 	sprite.setScale(size, size);
 	sfml_window->draw(sprite);
@@ -240,6 +247,15 @@ void Game::draw_information()
 
 }
 
+void Game::draw_chat()
+{
+	draw_sfml_rect(TI{ 10, WIDTH - 40 }, TI{ 400, 30 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	/*int chat_height = 0;
+	for (auto& chat : chat_messages) {
+		draw_sfml_text_s(TI{ 15, 750 + chat_height++ * 20 }, chat, sf::Color::Black, 17);
+	}*/
+}
+
 void Game::game_handle_events()
 {
 	ZeroMemory(&key_input, sizeof(KS));
@@ -270,6 +286,12 @@ void Game::game_handle_events()
 				information_mode = false;
 			else
 				information_mode = true;
+		}
+		if (sfml_event.key.code == sf::Keyboard::T) {
+			if (chat_mode)
+				chat_mode = false;
+			else
+				chat_mode = true;
 		}
 	}
 }

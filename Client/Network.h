@@ -129,6 +129,7 @@ void process_packet(char* packet)
 		}
 		game->players[client_id].position.x = recv_packet->position.x;
 		game->players[client_id].position.y = recv_packet->position.y;
+		game->players[client_id].id = client_id;
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
@@ -150,6 +151,7 @@ void process_packet(char* packet)
 		game->my_id = recv_packet->client_id;
 		game->players[game->my_id].position.x = recv_packet->position.x;
 		game->players[game->my_id].position.y = recv_packet->position.y;
+		game->players[game->my_id].id = game->my_id;
 		//cout << "my id: " << game->my_id << endl;
 		
 		game->initialize_ingame();

@@ -10,7 +10,7 @@ public:
 	Direction direction = DOWN;
 	State state = IDLE;
 	unsigned char sprite_iter{};
-	unsigned long long name{};
+	int id = -1;
 
 	Player();
 	Player(TI);
