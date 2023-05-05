@@ -12,7 +12,7 @@ using namespace std;
 
 HANDLE h_iocp;
 
-enum EVENT_TYPE { MOVE, ATTACK };
+enum EVENT_TYPE { MOVE, ATTACK, SLEEP };
 class EVENT {
 public:
 	int object_id;
@@ -60,8 +60,7 @@ SOCKET global_client_socket;
 SOCKET global_server_socket;
 TI randomly_spawn_player();
 void disconnect(int);
-void move_npc(int);
-void call_npc(int);
+void move_npc(int, EVENT_TYPE);
 atomic <int> player_count = 0;
 
 enum SESSION_STATE { FREE, ALLOC, INGAME };
@@ -126,6 +125,9 @@ array<SESSION, MAX_USER + MAX_NPC> clients;
 
 void SESSION::send_login_packet()
 {
+	if (this->client_id >= MAX_USER)
+		return;
+	
 	player_count.fetch_add(1);
 	//cout << "Player Count : " << player_count << endl;
 	
@@ -138,6 +140,9 @@ void SESSION::send_login_packet()
 
 void SESSION::send_move_packet(int client_id)
 {
+	if (this->client_id >= MAX_USER)
+		return;
+	
 	SC_MOVE_PACKET packet;
 	packet.client_id = client_id;
 	packet.position = clients[client_id].player.position;
@@ -147,6 +152,9 @@ void SESSION::send_move_packet(int client_id)
 
 void SESSION::send_out_packet(int client_id)
 {
+	if (this->client_id >= MAX_USER)
+		return;
+	
 	SC_OUT_PACKET packet;
 	packet.client_id = client_id;
 	do_send(&packet);
@@ -231,41 +239,77 @@ void process_packet(int client_id, char* packet)
 		unordered_set<int> old_view_list = moved_client->view_list;	//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
 
-		for (int user_id = 0; user_id < MAX_USER; user_id++) {
+		//int num_clients = 1;
+		for (int user_id = 0; user_id < MAX_USER; ++user_id) {	//유저 검색
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
 				if (clients[user_id].state != INGAME) continue;
 			}
 			if (clients[user_id].client_id == client_id) continue;
 
-			if (in_eyesight(client_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(clients[user_id].client_id);			//new list 채우기
+			if (in_eyesight(client_id, user_id)) {	//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(user_id);			//new list 채우기
+			}
+			//if (num_clients == player_count)				//현재 있는 유저만큼 검색 했으면 끝내자 (성능 차이가 없다)
+				//break;
+			//++num_clients;
+		}
+		for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {	//NPC검색
+			{
+				lock_guard<mutex> m(clients[client_id].state_mtx);
+				if (clients[npc_id].state != INGAME) continue;
+			}
+			if (clients[npc_id].client_id == client_id) continue;
+
+			if (in_eyesight(client_id, npc_id)) {	//현재 시야 안에 있는 NPC
+				new_view_list.insert(npc_id);			//new list 채우기
 			}
 		}
 		for (auto& new_one : new_view_list) {
 			clients[new_one].send_move_packet(client_id);
+			
 			if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
 				clients[new_one].insert_view_list(client_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
 				moved_client->send_move_packet(new_one);
-				moved_client->insert_view_list(new_one);		//뷰 리스트에 추가
+				moved_client->insert_view_list(new_one);				//뷰 리스트에 추가
+
+				if (new_one >= MAX_USER) {							//NPC라면 깨우기
+					EVENT event(new_one, MOVE, chrono::system_clock::now());
+					timer_mtx.lock();
+					timer_queue.push(event);
+					timer_mtx.unlock();
+					//cout<< new_one << " 일어나라 NPC야\n";
+				}
 			}
 		}
 		for (auto& old_one : old_view_list) {
 			if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
-				moved_client->send_out_packet(old_one);		//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
-				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
 				moved_client->erase_view_list(old_one);		//뷰 리스트에서 삭제
 				clients[old_one].erase_view_list(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+				
+				moved_client->send_out_packet(old_one);		//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
+				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+
+				if (clients[old_one].client_id >= MAX_USER) {							//NPC라면 재우기
+					EVENT event(clients[old_one].client_id, SLEEP, chrono::system_clock::now());
+					timer_mtx.lock();
+					timer_queue.push(event);
+					timer_mtx.unlock();
+					//cout<< old_one << " 자라 NPC야\n";
+				}
 			}
 		}
-
+		moved_client->view_list_mtx.lock();
+		moved_client->view_list = new_view_list;	//뷰 리스트 갱신
+		moved_client->view_list_mtx.unlock();
+		
 		break;
 	}
 	case P_CS_LOGIN:
 	{
 		SESSION* new_client = &clients[client_id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
-		new_client->send_login_packet();									//새로온 애한테 로그인 됐다고 전송
+		new_client->send_login_packet();										//새로온 애한테 로그인 됐다고 전송
 		{
 			lock_guard<mutex> m{ clients[client_id].state_mtx };
 			clients[client_id].state = INGAME;
@@ -279,11 +323,19 @@ void process_packet(int client_id, char* packet)
 			if (client_id == old_client.client_id) continue;
 
 			if (in_eyesight(client_id, old_client.client_id)) {
-				old_client.insert_view_list(client_id);//시야 안에 들어온 클라의 View list에 새로온 놈 추가
-				new_client->insert_view_list(old_client.client_id);//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
-
+				old_client.insert_view_list(client_id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
+				new_client->insert_view_list(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
+				
 				new_client->send_move_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
 				old_client.send_move_packet(client_id);						//시야 안에 클라한테 새로온 애 위치 전송
+				
+				if (old_client.client_id >= MAX_USER) {							//NPC라면 깨우기
+					EVENT event(old_client.client_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(10));
+					timer_mtx.lock();
+					timer_queue.push(event);
+					timer_mtx.unlock();
+					//cout << old_client.client_id << " 일어나라 NPC야\n";
+				}
 			}
 		}
 		break;
@@ -380,8 +432,7 @@ void work_thread()
 		}
 		case OP_AI: {
 			EVENT_TYPE event = ex_over->event_type;
-
-			move_npc(static_cast<int>(key));
+			move_npc(static_cast<int>(key), event);
 			delete ex_over;
 			break;
 		}
@@ -398,42 +449,22 @@ void spawn_npc()
 		clients[npc_id].view_list.clear();
 		clients[npc_id].state = INGAME;
 		clients[npc_id].player.position = randomly_spawn_player();
-
-		EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(npc_id - MAX_USER + 1));
-		timer_mtx.lock();
-		timer_queue.push(event);
-		timer_mtx.unlock();
-
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
 	cout << "NPC spawn time : " << duration.count() << " ms" << endl;
 }
 
-void move_npc(int npc_id)
+void move_npc(int npc_id, EVENT_TYPE event_todo)
 {
-	//cout << "move npc "<< npc_id << endl;
-	bool skip_ai = true;
-	for (int user_id = 0; user_id < MAX_USER; ++user_id) {	//움직이기 전에 시야처리 해서 시야에 있는 유저가 있으면 움직임
-		{
-			lock_guard<mutex> m(clients[user_id].state_mtx);
-			if (clients[user_id].state != INGAME) continue;
-		}
-		if (true == in_eyesight(npc_id, user_id)) {
-			skip_ai = false;
-			break;
-		}
-	}
-	if (true == skip_ai) {
-		/*EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(10));
-		timer_mtx.lock();
-		timer_queue.push(event);
-		timer_mtx.unlock();*/
+	if (event_todo == SLEEP)
 		return;
-	}
-	//cout << "move_npc" << npc_id << endl;
+
 	SESSION* moved_npc = &clients[npc_id];
-	int direction = rand() % 4;
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution <int>spawn_location(0, 3);
+	int direction = spawn_location(dre);
 	switch (direction)
 	{
 	case 0: moved_npc->player.key_input.up = true; break;
@@ -453,28 +484,36 @@ void move_npc(int npc_id)
 			lock_guard<mutex> m(clients[user_id].state_mtx);
 			if (clients[user_id].state != INGAME) continue;
 		}
-		//if (clients[i].client_id == npc_id) continue;
-		if (in_eyesight(npc_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
+		if (in_eyesight(npc_id, clients[user_id].client_id)) {		//현재 시야 안에 있는 클라이언트
 			new_view_list.insert(clients[user_id].client_id);			//new list 채우기
-			}
+		}
 	}
 	for (auto& new_one : new_view_list) {
 		clients[new_one].send_move_packet(npc_id);
-		cout << "move packet" << endl;
 		if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
-			clients[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-			moved_npc->insert_view_list(new_one);		//뷰 리스트에 추가
+			clients[new_one].insert_view_list(npc_id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			moved_npc->insert_view_list(new_one);				//뷰 리스트에 추가
 		}
 	}
 	for (auto& old_one : old_view_list) {
-		if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
+		if (new_view_list.count(old_one) == 0) {				//시야에서 사라진 플레이어
 			clients[old_one].send_out_packet(npc_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
-			moved_npc->erase_view_list(old_one);		//뷰 리스트에서 삭제
+			moved_npc->erase_view_list(old_one);			//뷰 리스트에서 삭제
 			clients[old_one].erase_view_list(npc_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 		}
 	}
+	moved_npc->view_list_mtx.lock();
+	moved_npc->view_list = new_view_list;	//뷰 리스트 갱신
+	moved_npc->view_list_mtx.unlock();
 
-	EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(10));
+	if (new_view_list.size() == 0) {
+		//cout << moved_npc->client_id << " 잔다 NPC\n";
+		return;
+	}
+	
+	//cout << moved_npc->client_id << " moving\n";
+
+	EVENT event(npc_id, MOVE, chrono::system_clock::now() + chrono::milliseconds(1000));
 	timer_mtx.lock();
 	timer_queue.push(event);
 	timer_mtx.unlock();
@@ -484,16 +523,18 @@ void do_timer()
 {
 	while (1) {
 		timer_mtx.lock();
-		if (timer_queue.size() == 0) {
+		if (timer_queue.size() == 0) {							//아무것도 없으면 슬립
 			timer_mtx.unlock();
-			this_thread::sleep_for(10ms);
+			//this_thread::sleep_for(1ms);
 			continue;
 		}
 		timer_mtx.unlock();
 
-		auto event = timer_queue.top();					//맨 위에 있는거 꺼내서
+		timer_mtx.lock();
+		auto event = timer_queue.top();						//맨 위에 있는거 꺼내서
+		timer_mtx.unlock();
 		if (event.exec_time > chrono::system_clock::now()) {	//지금 시간보다 크면 
-			this_thread::sleep_for(10ms);				//더 기다리고 아니면 실행
+			//this_thread::sleep_for(1ms);				//더 기다리기
 			continue;
 		}
 		
@@ -535,7 +576,6 @@ int main()
 	
 	spawn_npc();
 	thread timer{ do_timer };
-	//thread ai_thread{ do_ai, h_iocp };
 	
 	vector <thread> worker_threads;
 	int num_threads = thread::hardware_concurrency();
@@ -544,7 +584,6 @@ int main()
 	for (auto& th : worker_threads)
 		th.join();
 
-	//ai_thread.join();
 	timer.join();
 	
 	closesocket(global_server_socket);

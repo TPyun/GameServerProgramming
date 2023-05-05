@@ -6,6 +6,7 @@
 #include <mutex>
 #include <chrono>
 #include <stdlib.h>
+#include <concurrent_unordered_map.h>
 #include "Player.h"
 
 class Game
@@ -23,7 +24,7 @@ public:
 	//ingame scene
 	KS key_input{ false, false, false, false };
 	std::unordered_map <int, Player> players;
-	std::mutex mtx;
+	std::mutex players_mtx;
 
 	char ip_address[100] = "127.0.0.1";
 	//char ip_address[100] = "192.168.0.8";

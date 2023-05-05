@@ -107,6 +107,7 @@ void process_packet(char* packet)
 	{
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
+		game->players_mtx.lock();
 		if(game->players[client_id].position.x < recv_packet->position.x){
 			game->players[client_id].direction = RIGHT;
 			game->players[client_id].state = MOVE;
@@ -130,6 +131,8 @@ void process_packet(char* packet)
 		game->players[client_id].position.x = recv_packet->position.x;
 		game->players[client_id].position.y = recv_packet->position.y;
 		game->players[client_id].id = client_id;
+		game->players_mtx.unlock();
+
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
@@ -139,9 +142,10 @@ void process_packet(char* packet)
 	{
 		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
-		game->mtx.lock();
-		game->players.erase(client_id);
-		game->mtx.unlock();
+		
+		game->players_mtx.lock();
+		int ret = game->players.erase(client_id);
+		game->players_mtx.unlock();
 		//cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
@@ -149,9 +153,11 @@ void process_packet(char* packet)
 	{
 		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;
+		game->players_mtx.lock();
 		game->players[game->my_id].position.x = recv_packet->position.x;
 		game->players[game->my_id].position.y = recv_packet->position.y;
 		game->players[game->my_id].id = game->my_id;
+		game->players_mtx.unlock();
 		//cout << "my id: " << game->my_id << endl;
 		
 		game->initialize_ingame();
@@ -205,9 +211,9 @@ DWORD __stdcall process(LPVOID arg)
 			SleepEx(10, true);
 		}
 		
-		game->mtx.lock();
+		game->players_mtx.lock();
 		game->players.clear();
-		game->mtx.unlock();
+		game->players_mtx.unlock();
 		game->scene = 0;
 		closesocket(server_socket);
 		WSACleanup();

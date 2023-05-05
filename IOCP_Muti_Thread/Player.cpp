@@ -12,7 +12,7 @@ Player::~Player()
 
 void Player::move(TI direction)
 {
-	if (position.x + direction.x < 0 || position.x + direction.x > MAP_SIZE || position.y + direction.y < 0 || position.y + direction.y > MAP_SIZE) {
+	if (position.x + direction.x < 0 || position.x + direction.x >= MAP_SIZE || position.y + direction.y < 0 || position.y + direction.y >= MAP_SIZE) {
 		return;
 	}
 	position.x += direction.x;
