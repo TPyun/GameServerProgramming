@@ -135,7 +135,7 @@ void process_packet(char* packet)
 
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
-		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
+		cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 		break;
 	}
 	case P_SC_OUT:
@@ -146,7 +146,7 @@ void process_packet(char* packet)
 		game->players_mtx.lock();
 		int ret = game->players.erase(client_id);
 		game->players_mtx.unlock();
-		//cout << "client_id: " << client_id << " out" << endl;
+		cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
 	case P_SC_LOGIN:
@@ -158,7 +158,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].position.y = recv_packet->position.y;
 		game->players[game->my_id].id = game->my_id;
 		game->players_mtx.unlock();
-		//cout << "my id: " << game->my_id << endl;
+		cout << "my id: " << game->my_id << endl;
 		
 		game->initialize_ingame();
 		break;
