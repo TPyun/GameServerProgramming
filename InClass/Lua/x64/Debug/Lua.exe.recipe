@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>D:\PythonProjects\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe</FullPath>
+      <FullPath>D:\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

@@ -3,6 +3,7 @@
 #include "Game.h"
 
 using namespace std;
+using namespace chrono;
 
 Game::Game()
 {
@@ -67,7 +68,21 @@ void Game::update()
 			game_handle_events();
 		players_mtx.lock();
 		draw_game();
+		timer();
 		players_mtx.unlock();
+	}
+}
+
+void Game::timer()
+{
+	for (auto& player : players) {
+		if (player.second.chat_time != 0) {
+			if (player.second.chat_time + 2000 < static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count())) {
+				//cout << player.second.chat_time << " " << duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() << endl;
+				player.second.chat_time = 0;
+				player.second.chat.clear();
+			}
+		}
 	}
 }
 
@@ -190,16 +205,20 @@ void Game::draw_game()
 
 	// Draw the players in sorted order
 	for (const auto& player : sorted_players) {
-		draw_sprite(player_sprite[1], player.first, sf::Color::White, 3); // Walk
+		draw_sprite(player_sprite[1], player.first, sf::Color::White, 4); // Walk
 		TI related_pos = get_relative_location(player.second.position);
-		draw_sfml_text_s({ related_pos.x - (int)std::to_string(player.first).length() * 4, related_pos.y - 90 }, std::to_string(player.first), sf::Color::White, 14);
+		draw_sfml_text_s({ related_pos.x - (int)std::to_string(player.first).length() * 4, related_pos.y - 110 }, std::to_string(player.first), sf::Color::White, 14);
+
+		if (player.second.chat_time) {		//draw chat
+			draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 130 }, player.second.chat, sf::Color::White, 14);
+		}
 	}
 	
 	if(information_mode)
-		draw_information();
+		draw_information_mode();
 	
 	if (chat_mode)
-		draw_chat();
+		draw_chat_mode();
 }
 
 void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
@@ -224,7 +243,7 @@ void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
 	this_player->sprite_iter++;
 }
 
-void Game::draw_information()
+void Game::draw_information_mode()
 {
 	//draw player list
 	int text_size = 13;
@@ -258,7 +277,7 @@ void Game::draw_information()
 	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White);	//my position on mini map
 }
 
-void Game::draw_chat()
+void Game::draw_chat_mode()
 {
 	draw_sfml_rect(TI{ 10, WIDTH - 40 }, TI{ 400, 30 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
 	/*int chat_height = 0;

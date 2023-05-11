@@ -19,14 +19,14 @@ int main()
 		game->update();
 		game->render();
 		
-		frame++;
 		//check fps
+		/*frame++;
 		clock_t end = clock();
 		if (end - start >= 1000) {
 			cout << "fps: " << frame << endl;
 			frame = 0;
 			start = clock();
-		}
+		}*/
 	}
 	
 	return 0;

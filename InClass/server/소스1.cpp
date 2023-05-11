@@ -232,11 +232,11 @@ int get_new_client_id()
 
 void WakeUpNPC(int npc_id, int waker)
 {
-	cout << "WakeUpNPC" << endl;
-	OVER_EXP* exover = new OVER_EXP;
+	//cout << "WakeUpNPC" << endl;
+	/*OVER_EXP* exover = new OVER_EXP;
 	exover->_comp_type = OP_AI_HELLO;
 	exover->_ai_target_obj = waker;
-	PostQueuedCompletionStatus(h_iocp, 1, npc_id, &exover->_over);
+	PostQueuedCompletionStatus(h_iocp, 1, npc_id, &exover->_over);*/
 
 	if (clients[npc_id]._is_active) return;
 	bool old_state = false;
@@ -326,7 +326,7 @@ void process_packet(int c_id, char* packet)
 					clients[pl].send_remove_player_packet(c_id);
 			}
 	}
-				break;
+	break;
 	}
 }
 
@@ -557,23 +557,23 @@ void InitializeNPC()
 		sprintf_s(clients[i]._name, "NPC%d", i);
 		clients[i]._state = ST_INGAME;
 
-		auto L = clients[i]._L = luaL_newstate();
-		luaL_openlibs(L);
-		luaL_loadfile(L, "../Lua/npc.lua");
-		int error = lua_pcall(L, 0, 0, 0);
-		if (error) {
-			cout << "Error:" << lua_tostring(L, -1);
-			lua_pop(L, 1);
-		}
+		//auto L = clients[i]._L = luaL_newstate();
+		//luaL_openlibs(L);
+		//luaL_loadfile(L, "../Lua/npc.lua");
+		//int error = lua_pcall(L, 0, 0, 0);
+		//if (error) {
+		//	cout << "Error:" << lua_tostring(L, -1);
+		//	lua_pop(L, 1);
+		//}
 
-		lua_getglobal(L, "set_uid");
-		lua_pushnumber(L, i);
-		lua_pcall(L, 1, 0, 0);
-		// lua_pop(L, 1);// eliminate set_uid from stack after call
+		//lua_getglobal(L, "set_uid");
+		//lua_pushnumber(L, i);
+		//lua_pcall(L, 1, 0, 0);
+		//// lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		lua_register(L, "API_SendMessage", API_SendMessage);
-		lua_register(L, "API_get_x", API_get_x);
-		lua_register(L, "API_get_y", API_get_y);
+		//lua_register(L, "API_SendMessage", API_SendMessage);
+		//lua_register(L, "API_get_x", API_get_x);
+		//lua_register(L, "API_get_y", API_get_y);
 	}
 	cout << "NPC initialize end.\n";
 }

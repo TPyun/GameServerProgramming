@@ -149,6 +149,15 @@ void process_packet(char* packet)
 		cout << "client_id: " << client_id << " out" << endl;
 		break;
 	}
+	case P_SC_CHAT:
+	{
+		SC_CHAT_PACKET* recv_packet = reinterpret_cast<SC_CHAT_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->players[client_id].chat = recv_packet->message;
+		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+		cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
+		break;
+	}
 	case P_SC_LOGIN:
 	{
 		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);

@@ -41,12 +41,13 @@ private:
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
 	void draw_sprite(sf::Sprite, int, sf::Color, char);
+	void timer();
 	
 	void draw_main();
 	void main_handle_events();
 	void draw_game();
-	void draw_information();
-	void draw_chat();
+	void draw_information_mode();
+	void draw_chat_mode();
 	void game_handle_events();
 	TI get_relative_location(TI);
 	

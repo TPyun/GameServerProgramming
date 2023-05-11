@@ -163,6 +163,10 @@ void ProcessPacket(int ci, unsigned char packet[])
 		g_clients[my_id].y = login_packet->position.y;
 		break;
 	}
+	case P_SC_CHAT: 
+	{
+		break;
+	}
 	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
 		while (true);
 	}

@@ -8,7 +8,7 @@
 #define SERVER_PORT 9000
 
 constexpr int BUFSIZE = 200;
-constexpr int MAX_USER = 20000;
+constexpr int MAX_USER = 10000;
 constexpr int MAX_NPC = 200000;
 
 constexpr int WIDTH = 750;	//Client
@@ -22,11 +22,13 @@ constexpr int VIEW_RANGE = (CLIENT_RANGE - 1) / 2;	//Server
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
 constexpr char P_CS_LOGIN = 0;
-constexpr char P_CS_MOVE = 3;
+constexpr char P_CS_MOVE = 1;
 
-constexpr char P_SC_LOGIN = 1;
-constexpr char P_SC_MOVE = 2;
-constexpr char P_SC_OUT = 4;
+constexpr char P_SC_LOGIN = 64;
+constexpr char P_SC_MOVE = 65;
+constexpr char P_SC_OUT = 66;
+constexpr char P_SC_CHAT = 67;
+
 
 typedef struct two_ints {
 	int x;
@@ -63,29 +65,11 @@ typedef struct key_state {
 
 
 #pragma pack (push, 1)
-
+//CLIENT TO SERVER
 struct CS_LOGIN_PACKET {
 	unsigned char size = sizeof(CS_LOGIN_PACKET);
 	unsigned char type = P_CS_LOGIN;
 };
-
-struct SC_LOGIN_PACKET {
-	unsigned char size = sizeof(SC_LOGIN_PACKET);
-	unsigned char type = P_SC_LOGIN;
-	
-	int client_id;
-	TI position;
-};
-
-struct SC_MOVE_PACKET {
-	unsigned char size = sizeof(SC_MOVE_PACKET);
-	unsigned char type = P_SC_MOVE;
-
-	int client_id;
-	TI position;
-	unsigned int time{};
-};
-
 struct CS_MOVE_PACKET {
 	unsigned char size = sizeof(CS_MOVE_PACKET);
 	unsigned char type = P_CS_MOVE;
@@ -94,11 +78,34 @@ struct CS_MOVE_PACKET {
 	unsigned int time{};
 };
 
+//SERVER TO CLIENT
+struct SC_LOGIN_PACKET {
+	unsigned char size = sizeof(SC_LOGIN_PACKET);
+	unsigned char type = P_SC_LOGIN;
+	
+	int client_id;
+	TI position;
+};
+struct SC_MOVE_PACKET {
+	unsigned char size = sizeof(SC_MOVE_PACKET);
+	unsigned char type = P_SC_MOVE;
+
+	int client_id;
+	TI position;
+	unsigned int time{};
+};
 struct SC_OUT_PACKET {
 	unsigned char size = sizeof(SC_OUT_PACKET);
 	unsigned char type = P_SC_OUT;
 
 	int client_id;
+};
+struct SC_CHAT_PACKET {
+	unsigned char size = sizeof(SC_CHAT_PACKET);
+	unsigned char type = P_SC_CHAT;
+
+	int client_id;
+	char message[100];
 };
 
 #pragma pack (pop)

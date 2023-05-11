@@ -1,3 +1,4 @@
 ﻿  소스.cpp
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(50,10): warning C4244: '초기화 중': 'lua_Number'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-  Lua.vcxproj -> D:\PythonProjects\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe
+D:\GameServerProgramming\InClass\Lua\소스.cpp(50,10): warning C4244: 'initializing': conversion from 'lua_Number' to 'int', possible loss of data
+LINK : warning LNK4098: defaultlib 'LIBCMT' conflicts with use of other libs; use /NODEFAULTLIB:library
+  Lua.vcxproj -> D:\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe

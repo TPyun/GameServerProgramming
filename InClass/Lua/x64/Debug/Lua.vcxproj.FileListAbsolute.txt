@@ -1,1 +1,2 @@
 D:\PythonProjects\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe
+D:\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe

@@ -163,6 +163,7 @@ void ProcessPacket(int ci, unsigned char packet[])
 		//t_packet.type = CS_TELEPORT;
 		//SendPacket(my_id, &t_packet);
 	}
+	case SC_CHAT: break;
 	break;
 	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
 		while (true);
@@ -243,8 +244,8 @@ void Worker_Thread()
 			delete over;
 		}
 		else {
-			std::cout << "Unknown GQCS event!\n";
-			while (true);
+			//std::cout << "Unknown GQCS event!\n";
+			//while (true);
 		}
 	}
 }

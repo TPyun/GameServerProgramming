@@ -1,5 +1,6 @@
 #pragma once
 #include "../Protocol.h"
+#include <chrono>
 
 enum Direction { UP, LEFT, DOWN, RIGHT };
 enum State { IDLE, MOVE };
@@ -11,6 +12,9 @@ public:
 	State state = IDLE;
 	unsigned char sprite_iter{};
 	int id = -1;
+	
+	unsigned int chat_time;
+	std::string chat;
 
 	Player();
 	Player(TI);
