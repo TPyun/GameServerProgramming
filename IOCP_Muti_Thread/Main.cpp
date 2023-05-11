@@ -3,15 +3,22 @@
 #include <vector>
 #include <thread>
 #include <mutex>
-#include<chrono>
+#include <chrono>
 #include <atomic>
 #include <unordered_set>
 #include <queue>
 #include "Player.h"
+
+extern "C"
+{
+#include "include/lua.h"
+#include "include/lauxlib.h"
+#include "include/lualib.h"
+}
+#pragma comment(lib, "lua54.lib")
 using namespace std;
 
 HANDLE h_iocp;
-
 enum EVENT_TYPE { EV_MOVE, EV_ATTACK, EV_SLEEP };
 class EVENT {
 public:
@@ -29,7 +36,7 @@ public:
 priority_queue<EVENT> timer_queue;
 mutex timer_mtx;
 
-enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_AI };
+enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC_MOVE };
 class OVER_EXP {
 public:
 	WSAOVERLAPPED over;	//클래스의 맨 첫번째에 있어야만 함. 이거를 가지고 클래스 포인터 위치 찾을거임
@@ -60,7 +67,7 @@ SOCKET global_client_socket;
 SOCKET global_server_socket;
 TI randomly_spawn_player();
 void disconnect(int);
-void move_npc(int, EVENT_TYPE);
+void random_move_npc(int, EVENT_TYPE);
 atomic <int> player_count = 0;
 
 enum SESSION_STATE { ST_FREE, ST_ALLOC, ST_INGAME };
@@ -78,6 +85,8 @@ public:
 	mutex state_mtx;
 	unordered_set<int> view_list;
 	mutex view_list_mtx;
+	lua_State* lua;
+	mutex	lua_mtx;
 
 	SESSION() {
 		state = ST_FREE;
@@ -118,6 +127,8 @@ public:
 	void send_login_packet();
 	void send_move_packet(int);
 	void send_out_packet(int);
+	void send_chat_packet(int c_id, const char* mess);
+
 	void insert_view_list(int);
 	void erase_view_list(int);
 };
@@ -157,6 +168,16 @@ void SESSION::send_out_packet(int client_id)
 	
 	SC_OUT_PACKET packet;
 	packet.client_id = client_id;
+	do_send(&packet);
+}
+
+void SESSION::send_chat_packet(int p_id, const char* mess)
+{
+	SC_CHAT_PACKET packet;
+	packet.id = p_id;
+	packet.size = sizeof(packet);
+	packet.type = SC_CHAT;
+	strcpy_s(packet.mess, mess);
 	do_send(&packet);
 }
 
@@ -243,11 +264,11 @@ void process_packet(int client_id, char* packet)
 		moved_client->player.key_check();
 		moved_client->prev_time = recv_packet->time;
 
-		moved_client->send_move_packet(client_id);					//본인 움직임 보냄
+		moved_client->send_move_packet(client_id);								//본인 움직임 보냄
 
-		unordered_set<int> new_view_list;	//새로 업데이트 할 뷰 리스트
+		unordered_set<int> new_view_list;										//새로 업데이트 할 뷰 리스트
 		moved_client->view_list_mtx.lock();
-		unordered_set<int> old_view_list = moved_client->view_list;	//이전 뷰 리스트 복사
+		unordered_set<int> old_view_list = moved_client->view_list;				//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
 
 		//int num_clients = 1;
@@ -257,10 +278,10 @@ void process_packet(int client_id, char* packet)
 				if (clients[user_id].state != ST_INGAME) continue;
 			}
 			if (clients[user_id].client_id == client_id) continue;
-			if (in_eyesight(client_id, user_id)) {	//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(user_id);			//new list 채우기
+			if (in_eyesight(client_id, user_id)) {						//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(user_id);								//new list 채우기
 			}
-			//if (num_clients == player_count)				//현재 있는 유저만큼 검색 했으면 끝내자 (성능 차이가 없다)
+			//if (num_clients == player_count)									//현재 있는 유저만큼 검색 했으면 끝내자 (성능 차이가 없다)
 			//	break;
 			//++num_clients;
 		}
@@ -270,32 +291,32 @@ void process_packet(int client_id, char* packet)
 				if (clients[npc_id].state != ST_INGAME) continue;
 			}
 			if (clients[npc_id].client_id == client_id) continue;
-			if (in_eyesight(client_id, npc_id)) {	//현재 시야 안에 있는 NPC
-				new_view_list.insert(npc_id);			//new list 채우기
+			if (in_eyesight(client_id, npc_id)) {						//현재 시야 안에 있는 NPC
+				new_view_list.insert(npc_id);								//new list 채우기
 			}
 		}
 		
 		for (auto& new_one : new_view_list) {
 			clients[new_one].send_move_packet(client_id);
 			
-			if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
-				clients[new_one].insert_view_list(client_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			if (old_view_list.count(new_one) == 0) {							//새로 시야에 들어온 플레이어
+				clients[new_one].insert_view_list(client_id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
 				moved_client->send_move_packet(new_one);
-				moved_client->insert_view_list(new_one);				//뷰 리스트에 추가
+				moved_client->insert_view_list(new_one);					//뷰 리스트에 추가
 
-				if (new_one >= MAX_USER) {							//NPC라면 깨우기
+				if (new_one >= MAX_USER) {											//NPC라면 깨우기
 					reserve_timer(new_one, EV_MOVE, 0);
 					//cout<< new_one << " 일어나라 NPC야\n";
 				}
 			}
 		}
 		for (auto& old_one : old_view_list) {
-			if (new_view_list.count(old_one) == 0) {			//시야에서 사라진 플레이어
-				moved_client->erase_view_list(old_one);		//뷰 리스트에서 삭제
-				clients[old_one].erase_view_list(client_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+			if (new_view_list.count(old_one) == 0) {								//시야에서 사라진 플레이어
+				moved_client->erase_view_list(old_one);						//뷰 리스트에서 삭제
+				clients[old_one].erase_view_list(client_id);					//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 				
-				moved_client->send_out_packet(old_one);		//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
-				clients[old_one].send_out_packet(client_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+				moved_client->send_out_packet(old_one);							//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
+				clients[old_one].send_out_packet(client_id);							//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
 
 				if (clients[old_one].client_id >= MAX_USER) {							//NPC라면 재우기
 					reserve_timer(old_one, EV_SLEEP, 0);
@@ -330,8 +351,8 @@ void process_packet(int client_id, char* packet)
 				old_client.insert_view_list(client_id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
 				new_client->insert_view_list(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
 				
-				new_client->send_move_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
-				old_client.send_move_packet(client_id);						//시야 안에 클라한테 새로온 애 위치 전송
+				new_client->send_move_packet(old_client.client_id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
+				old_client.send_move_packet(client_id);							//시야 안에 클라한테 새로온 애 위치 전송
 				
 				if (old_client.client_id >= MAX_USER) {							//NPC라면 깨우기
 					reserve_timer(old_client.client_id, EV_MOVE, 0);
@@ -431,15 +452,49 @@ void work_thread()
 			AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 			break;
 		}
-		case OP_AI: {
-			EVENT_TYPE event = ex_over->event_type;
-			move_npc(static_cast<int>(key), event);
+		case OP_NPC_MOVE: {
+			EVENT_TYPE event_type = ex_over->event_type;
+			if (event_type == EV_SLEEP)
+				break;
+			random_move_npc(static_cast<int>(key), event_type);
 			delete ex_over;
 			break;
 		}
 		default: cout << "Unknown Completion Type" << endl; break;
 		}
 	}
+}
+
+int API_get_x(lua_State* L)
+{
+	int user_id =
+		(int)lua_tointeger(L, -1);
+	lua_pop(L, 2);
+	int x = clients[user_id].player.position.x;
+	lua_pushnumber(L, x);
+	return 1;
+}
+
+int API_get_y(lua_State* L)
+{
+	int user_id =
+		(int)lua_tointeger(L, -1);
+	lua_pop(L, 2);
+	int y = clients[user_id].player.position.y;
+	lua_pushnumber(L, y);
+	return 1;
+}
+
+int API_SendMessage(lua_State* L)
+{
+	int my_id = (int)lua_tointeger(L, -3);
+	int user_id = (int)lua_tointeger(L, -2);
+	char* mess = (char*)lua_tostring(L, -1);
+
+	lua_pop(L, 4);
+	cout << "send message" << endl;
+	clients[user_id].send_chat_packet(my_id, mess);
+	return 0;
 }
 
 void spawn_npc()
@@ -450,17 +505,33 @@ void spawn_npc()
 		clients[npc_id].view_list.clear();
 		clients[npc_id].state = ST_INGAME;
 		clients[npc_id].player.position = randomly_spawn_player();
+		
+
+		auto L = clients[npc_id].lua = luaL_newstate();
+		luaL_openlibs(L);
+		luaL_loadfile(L, "npc.lua");
+		int error = lua_pcall(L, 0, 0, 0);
+		if (error) {
+			cout << "Error:" << lua_tostring(L, -1);
+			lua_pop(L, 1);
+		}
+
+		lua_getglobal(L, "set_uid");
+		lua_pushnumber(L, npc_id);
+		lua_pcall(L, 1, 0, 0);
+		// lua_pop(L, 1);// eliminate set_uid from stack after call
+
+		lua_register(L, "API_SendMessage", API_SendMessage);
+		lua_register(L, "API_get_x", API_get_x);
+		lua_register(L, "API_get_y", API_get_y);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
 	cout << "NPC spawn time : " << duration.count() << " ms" << endl;
 }
 
-void move_npc(int npc_id, EVENT_TYPE event_todo)
+void random_move_npc(int npc_id, EVENT_TYPE event_todo)
 {
-	if (event_todo == EV_SLEEP)
-		return;
-
 	SESSION* moved_npc = &clients[npc_id];
 	random_device rd;
 	default_random_engine dre(rd());
@@ -475,42 +546,37 @@ void move_npc(int npc_id, EVENT_TYPE event_todo)
 	}
 	moved_npc->player.key_check();
 	
-	unordered_set<int> new_view_list;	//새로 업데이트 할 뷰 리스트
+	unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
 	moved_npc->view_list_mtx.lock();
-	unordered_set<int> old_view_list = moved_npc->view_list;	//이전 뷰 리스트 복사
+	unordered_set<int> old_view_list = moved_npc->view_list;			//이전 뷰 리스트 복사
 	moved_npc->view_list_mtx.unlock();
 
-	for (int user_id = 0; user_id < MAX_USER; ++user_id) {		//유저만 검색
+	for (int user_id = 0; user_id < MAX_USER; ++user_id) {				//유저만 검색
 		{
 			lock_guard<mutex> m(clients[user_id].state_mtx);
 			if (clients[user_id].state != ST_INGAME) continue;
 		}
-		if (in_eyesight(npc_id, clients[user_id].client_id)) {		//현재 시야 안에 있는 클라이언트
-			new_view_list.insert(clients[user_id].client_id);			//new list 채우기
+		if (in_eyesight(npc_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
+			new_view_list.insert(clients[user_id].client_id);		//new list 채우기
 		}
 	}
 	for (auto& new_one : new_view_list) {
 		clients[new_one].send_move_packet(npc_id);
-		if (old_view_list.count(new_one) == 0) {						//새로 시야에 들어온 플레이어
-			clients[new_one].insert_view_list(npc_id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-			moved_npc->insert_view_list(new_one);				//뷰 리스트에 추가
+		if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
+			clients[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			moved_npc->insert_view_list(new_one);			//뷰 리스트에 추가
 		}
 	}
 	for (auto& old_one : old_view_list) {
-		if (new_view_list.count(old_one) == 0) {				//시야에서 사라진 플레이어
-			clients[old_one].send_out_packet(npc_id);		//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
-			moved_npc->erase_view_list(old_one);			//뷰 리스트에서 삭제
-			clients[old_one].erase_view_list(npc_id);	//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+		if (new_view_list.count(old_one) == 0) {					//시야에서 사라진 플레이어
+			clients[old_one].send_out_packet(npc_id);			//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+			moved_npc->erase_view_list(old_one);				//뷰 리스트에서 삭제
+			clients[old_one].erase_view_list(npc_id);		//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 		}
 	}
 	moved_npc->view_list_mtx.lock();
-	moved_npc->view_list = new_view_list;	//뷰 리스트 갱신
+	moved_npc->view_list = new_view_list;								//뷰 리스트 갱신
 	moved_npc->view_list_mtx.unlock();
-
-	
-	//moved_npc->view_list_mtx.lock();
-	//unordered_set<int> new_view_list = moved_npc->view_list;	//이전 뷰 리스트 복사
-	//moved_npc->view_list_mtx.unlock();
 
 	if (new_view_list.size() == 0) {
 		//cout << npc_id << " 잔다 NPC\n";
@@ -518,53 +584,51 @@ void move_npc(int npc_id, EVENT_TYPE event_todo)
 	}
 	////cout << npc_id << " moving\n";
 
-	//for (auto& new_one : new_view_list) {
-	//	clients[new_one].send_move_packet(npc_id);
-	//}
-
-
-
-
 	uniform_int_distribution <int>wakeup_time(900, 1100);
 	reserve_timer(npc_id, EV_MOVE, wakeup_time(dre));
 }
 
 void do_timer()
 {
-	int num_excuted_npc{};
 	EVENT event;
+	int num_excuted_npc{};
 	auto start_t = chrono::high_resolution_clock::now();
 	
 	while (1) {
 		timer_mtx.lock();
-		if (timer_queue.empty()) {							//아무것도 없으면 슬립
+		if (timer_queue.empty()) {								//아무것도 없으면 슬립
 			timer_mtx.unlock();
-			//this_thread::sleep_for(1ms);
+			this_thread::sleep_for(1ms);
 			continue;
 		}
 		else {
-			event = timer_queue.top();						//맨 위에 있는거 꺼내서
+			event = timer_queue.top();							//맨 위에 있는거 꺼내서
 		}
 		timer_mtx.unlock();
 		if (event.exec_time > chrono::system_clock::now()) {	//지금 시간보다 크면 
-			//this_thread::sleep_for(1ms);				//더 기다리기
+			this_thread::sleep_for(1ms);						//더 기다리기
 			continue;
 		}
 		
 		timer_mtx.lock();
 		timer_queue.pop();
 		timer_mtx.unlock();
-
-		OVER_EXP* over = new OVER_EXP();
-		over->event_type = event.type;
-		over->completion_type = OP_AI;
-		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
-		/*++num_excuted_npc;
-		if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
-			cout << num_excuted_npc << "개의 NPC가 움직임\n";
-			num_excuted_npc = 0;
-			start_t = chrono::high_resolution_clock::now();
-		}*/
+		
+		switch (event.type) {
+		case EV_MOVE: {
+			OVER_EXP* over = new OVER_EXP();
+			over->event_type = event.type;
+			over->completion_type = OP_NPC_MOVE;
+			PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
+			/*++num_excuted_npc;
+			if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
+				cout << num_excuted_npc << "개의 NPC가 움직임\n";
+				num_excuted_npc = 0;
+				start_t = chrono::high_resolution_clock::now();
+			}*/
+			break;
+		}
+		}
 	}
 }
 

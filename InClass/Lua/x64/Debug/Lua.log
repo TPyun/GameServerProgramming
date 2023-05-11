@@ -1,8 +1,3 @@
 ﻿  소스.cpp
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,42): error C3688: 잘못된 리터럴 접두사 'Hello'입니다. 리터럴 연산자 또는 리터럴 연산자 템플릿 '연산자 ""Hello'을(를) 찾을 수 없습니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,37): error C2146: 구문 오류: ';'이(가) 'from' 식별자 앞에 없습니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,37): error C2065: 'from': 선언되지 않은 식별자입니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,42): error C2146: 구문 오류: ';'이(가) 'Lua' 식별자 앞에 없습니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,42): error C2065: 'Lua': 선언되지 않은 식별자입니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,46): error C2017: 이스케이프 시퀀스가 잘못되었습니다.
-D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(11,47): error C2059: 구문 오류: '문자열'
+D:\PythonProjects\GameServerProgramming\InClass\Lua\소스.cpp(50,10): warning C4244: '초기화 중': 'lua_Number'에서 'int'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+  Lua.vcxproj -> D:\PythonProjects\GameServerProgramming\InClass\Lua\x64\Debug\Lua.exe
