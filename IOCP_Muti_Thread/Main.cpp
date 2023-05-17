@@ -311,15 +311,18 @@ void process_packet(int client_id, char* packet)
 					wake_up_npc(new_one);
 				}
 			}
-			if (new_one >= MAX_USER) {												//NPC라면 깨우기
-				clients[new_one].lua_mtx.lock();
-				auto L = clients[new_one].lua;
-				lua_getglobal(L, "event_player_move");
-				lua_pushnumber(L, client_id);
-				lua_pcall(L, 1, 0, 0);
-				lua_pop(L, 1);
-				clients[new_one].lua_mtx.unlock();
-			}
+			//if (new_one >= MAX_USER) {												//NPC라면 깨우기
+			//	if (clients[new_one].player.position.x != moved_client->player.position.x || clients[new_one].player.position.y != moved_client->player.position.y)
+			//		continue;
+			//	//clients[new_one].lua_mtx.lock();
+			//	cout << new_one << " == " << client_id << endl;
+			//	auto L = clients[new_one].lua;
+			//	lua_getglobal(L, "event_player_move");
+			//	lua_pushnumber(L, client_id);
+			//	lua_pcall(L, 1, 0, 0);
+			//	lua_pop(L, 1);
+			//	//clients[new_one].lua_mtx.unlock();
+			//}
 		}
 		for (auto& old_one : old_view_list) {
 			if (new_view_list.count(old_one) == 0) {								//시야에서 사라진 플레이어
@@ -469,8 +472,7 @@ void work_thread()
 
 int API_get_x(lua_State* L)
 {
-	int user_id =
-		(int)lua_tointeger(L, -1);
+	int user_id = (int)lua_tointeger(L, -1);
 	lua_pop(L, 2);
 	int x = clients[user_id].player.position.x;
 	lua_pushnumber(L, x);
@@ -479,8 +481,7 @@ int API_get_x(lua_State* L)
 
 int API_get_y(lua_State* L)
 {
-	int user_id =
-		(int)lua_tointeger(L, -1);
+	int user_id = (int)lua_tointeger(L, -1);
 	lua_pop(L, 2);
 	int y = clients[user_id].player.position.y;
 	lua_pushnumber(L, y);
@@ -508,23 +509,23 @@ void spawn_npc()
 		clients[npc_id].state = ST_INGAME;
 		clients[npc_id].player.position = randomly_spawn_player();
 
-		auto L = clients[npc_id].lua = luaL_newstate();
-		luaL_openlibs(L);
-		luaL_loadfile(L, "npc.lua");
-		int error = lua_pcall(L, 0, 0, 0);
-		if (error) {
-			cout << "Error:" << lua_tostring(L, -1);
-			lua_pop(L, 1);
-		}
+		//auto L = clients[npc_id].lua = luaL_newstate();
+		//luaL_openlibs(L);
+		//luaL_loadfile(L, "npc.lua");
+		//int error = lua_pcall(L, 0, 0, 0);
+		//if (error) {
+		//	cout << "Error:" << lua_tostring(L, -1);
+		//	lua_pop(L, 1);
+		//}
 
-		lua_getglobal(L, "set_uid");
-		lua_pushnumber(L, npc_id);
-		lua_pcall(L, 1, 0, 0);
-		// lua_pop(L, 1);// eliminate set_uid from stack after call
+		//lua_getglobal(L, "set_uid");
+		//lua_pushnumber(L, npc_id);
+		//lua_pcall(L, 1, 0, 0);
+		//// lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		lua_register(L, "API_SendMessage", API_SendMessage);
-		lua_register(L, "API_get_x", API_get_x);
-		lua_register(L, "API_get_y", API_get_y);
+		//lua_register(L, "API_SendMessage", API_SendMessage);
+		//lua_register(L, "API_get_x", API_get_x);
+		//lua_register(L, "API_get_y", API_get_y);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
@@ -631,12 +632,12 @@ void do_timer()
 			over->event_type = event.type;
 			over->completion_type = OP_NPC_MOVE;
 			PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
-			++num_excuted_npc;
+			/*++num_excuted_npc;
 			if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
 				cout << num_excuted_npc << "개의 NPC가 움직임\n";
 				num_excuted_npc = 0;
 				start_t = chrono::high_resolution_clock::now();
-			}
+			}*/
 			break;
 		}
 		}
