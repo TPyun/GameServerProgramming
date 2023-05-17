@@ -132,7 +132,7 @@ int DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	// Clear Screen And Depth Buffer
 	glLoadIdentity();									// Reset The Current Modelview Matrix
-	glTranslatef(0.14f, -0.4f, -1.0f);						// Move One Unit Into The Screen
+	glTranslatef(0.1f, -0.4f, -1.0f);						// Move One Unit Into The Screen
 															// Pulsing Colors Based On Text Position
 	glColor3f(1, 1, 0);
 	// Position The Text On The Screen
@@ -149,8 +149,8 @@ int DrawGLScene(GLvoid)									// Here's Where We Do All The Drawing
 	{
 		float x, y, z;
 
-		x = points[i * 2] / 640.f - 1.25f;
-		y = 1.25f - points[i * 2 + 1] / 640.f;
+		x = points[i * 2] / 1300.f - 0.9f;
+		y = 1.15f - points[i * 2 + 1] / 1300.f;
 		z = -1.0f;
 		glVertex3f(x, y, z);
 	}
@@ -446,7 +446,7 @@ int WINAPI WinMain(HINSTANCE	hInstance,			// Instance
 	fullscreen = FALSE;							// Windowed Mode
 
 	// Create Our OpenGL Window
-	if (!CreateGLWindow(L"Stress Test Client", 660, 480, 16, fullscreen))
+	if (!CreateGLWindow(L"Stress Test Client", 700, 700, 16, fullscreen))
 	{
 		return 0;									// Quit If Window Was Not Created
 	}
