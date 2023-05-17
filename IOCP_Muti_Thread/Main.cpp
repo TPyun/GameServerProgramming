@@ -294,9 +294,9 @@ void process_packet(int client_id, char* packet)
 				break;
 			++num_clients;
 		}
-		for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {	//NPC검색
+		for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {		//NPC검색
 			if (in_eyesight(client_id, npc_id)) {							//현재 시야 안에 있는 NPC
-				new_view_list.insert(npc_id);								//new list 채우기
+				new_view_list.insert(npc_id);									//new list 채우기
 			}
 		}
 		
@@ -311,14 +311,14 @@ void process_packet(int client_id, char* packet)
 					wake_up_npc(new_one);
 				}
 			}
-			if (new_one >= MAX_USER) {											//NPC라면 깨우기
-				/*clients[new_one].lua_mtx.lock();
+			if (new_one >= MAX_USER) {												//NPC라면 깨우기
+				clients[new_one].lua_mtx.lock();
 				auto L = clients[new_one].lua;
 				lua_getglobal(L, "event_player_move");
 				lua_pushnumber(L, client_id);
 				lua_pcall(L, 1, 0, 0);
 				lua_pop(L, 1);
-				clients[new_one].lua_mtx.unlock();*/
+				clients[new_one].lua_mtx.unlock();
 			}
 		}
 		for (auto& old_one : old_view_list) {
@@ -508,23 +508,23 @@ void spawn_npc()
 		clients[npc_id].state = ST_INGAME;
 		clients[npc_id].player.position = randomly_spawn_player();
 
-		//auto L = clients[npc_id].lua = luaL_newstate();
-		//luaL_openlibs(L);
-		//luaL_loadfile(L, "npc.lua");
-		//int error = lua_pcall(L, 0, 0, 0);
-		//if (error) {
-		//	cout << "Error:" << lua_tostring(L, -1);
-		//	lua_pop(L, 1);
-		//}
+		auto L = clients[npc_id].lua = luaL_newstate();
+		luaL_openlibs(L);
+		luaL_loadfile(L, "npc.lua");
+		int error = lua_pcall(L, 0, 0, 0);
+		if (error) {
+			cout << "Error:" << lua_tostring(L, -1);
+			lua_pop(L, 1);
+		}
 
-		//lua_getglobal(L, "set_uid");
-		//lua_pushnumber(L, npc_id);
-		//lua_pcall(L, 1, 0, 0);
-		//// lua_pop(L, 1);// eliminate set_uid from stack after call
+		lua_getglobal(L, "set_uid");
+		lua_pushnumber(L, npc_id);
+		lua_pcall(L, 1, 0, 0);
+		// lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		//lua_register(L, "API_SendMessage", API_SendMessage);
-		//lua_register(L, "API_get_x", API_get_x);
-		//lua_register(L, "API_get_y", API_get_y);
+		lua_register(L, "API_SendMessage", API_SendMessage);
+		lua_register(L, "API_get_x", API_get_x);
+		lua_register(L, "API_get_y", API_get_y);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
@@ -556,6 +556,7 @@ void random_move_npc(int npc_id)
 	case 2: moved_npc->player.key_input.left = true; break;
 	case 3: moved_npc->player.key_input.right = true; break;
 	}
+	
 	moved_npc->player.key_check();
 	
 	int num_clients = 1;

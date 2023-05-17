@@ -1,8 +1,92 @@
-#include <sqlext.h>
+#include<iostream>
+#include<Windows.h>
+#include <sqlext.h>  
+#include <iostream>
+#include <format>
+#include <string>
+using namespace std;
 
-RETCODE rc;
-HENV henv;
-HDBC hdbc;
-HSTMT hstmt;
+#define NAME_LEN 20
 
-SQLAllocEnv(&henv);
+int main() {
+    SQLHENV henv;
+    SQLHDBC hdbc;
+    SQLHSTMT hstmt;
+    SQLRETURN retcode;
+    SQLWCHAR szName[NAME_LEN];
+    SQLINTEGER user_id, user_exp;
+	SQLLEN cbName = 0, cbId = 0, cbExp = 0;
+
+	wcout.imbue(locale("korean"));
+
+    // Allocate environment handle  
+    retcode = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv);   //handle 할당
+
+    // Set the ODBC version environment attribute  
+    // ODBC3를 사용하겠다
+    if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+        retcode = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
+
+        // Allocate connection handle  
+        // handle 만들기
+        if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+            retcode = SQLAllocHandle(SQL_HANDLE_DBC, henv, &hdbc);
+
+            // Set login timeout to 5 seconds  
+            // 연결 시도 5초동안
+            if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+                SQLSetConnectAttr(hdbc, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
+
+                // Connect to data source  
+                // ODBC 연결
+                retcode = SQLConnect(hdbc, (SQLWCHAR*)L"GameServer", SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
+
+                // Allocate statement handle  
+                if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+                    cout << "Connect Success" << endl;
+                    retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
+                    
+					// Execute a SQL statement directly
+					// SQL 직접 실행
+                    retcode = SQLExecDirect(hstmt, (SQLWCHAR*)L"EXEC over_exp 2000", SQL_NTS);
+                    if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+
+                        // Bind columns 1, 2, and 3  
+                        retcode = SQLBindCol(hstmt, 1, SQL_INTEGER, &user_id, 12, &cbId);
+                        retcode = SQLBindCol(hstmt, 2, SQL_C_CHAR, szName, NAME_LEN, &cbName);
+                        retcode = SQLBindCol(hstmt, 3, SQL_INTEGER, &user_exp, 12, &cbExp);
+
+                        // Fetch and print each row of data. On an error, display a message and exit.  
+                        for (int i = 0; ; i++) {
+                            retcode = SQLFetch(hstmt);
+                            if (retcode == SQL_ERROR)
+                                cout << "Fetch Error" << endl;
+                            if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+                                cout << format("{}: {} {} {}\n", i + 1, user_id, reinterpret_cast<char*>(szName), user_exp);
+                            }
+                            else
+                                break;
+                        }
+                    }
+                    else {
+						cout << "SQLExecDirect Error" << endl;
+                    }
+                    
+
+                    // Process data  
+                    if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+                        SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
+                    }
+
+                    SQLDisconnect(hdbc);
+                }
+                else
+                {
+                    cout << "connect false" << endl;
+                }
+                SQLFreeHandle(SQL_HANDLE_DBC, hdbc);
+            }
+        }
+        SQLFreeHandle(SQL_HANDLE_ENV, henv);
+    }
+}
