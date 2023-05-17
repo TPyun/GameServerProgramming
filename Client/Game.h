@@ -29,12 +29,17 @@ public:
 	char ip_address[100] = "127.0.0.1";
 	//char ip_address[100] = "192.168.0.8";
 	char Port[100] = "9000";
+	std::string text_input;
+
 	bool try_connect = false;
 	bool connected = false;
 	int my_id = -1;
 	int ping = 0;
-	bool move_flag = false;
 	char scene = 0;
+	char chat_message[MAX_CHAT] = "";
+	
+	bool move_flag = false;
+	bool chat_flag = false;
 	
 private:
 	void draw_sfml_text(TI, char[], sf::Color, int);
@@ -48,6 +53,7 @@ private:
 	void draw_game();
 	void draw_information_mode();
 	void draw_chat_mode();
+	void chat_mode_events();
 	void game_handle_events();
 	TI get_relative_location(TI);
 	
@@ -62,9 +68,8 @@ private:
 	bool isRunning = true;
 	bool information_mode = false;
 	bool chat_mode = false;
+	bool chat_start = false;
 	
-	
-	//main scene
 	int input_height = 130;
-	std::string text_input;
+
 };

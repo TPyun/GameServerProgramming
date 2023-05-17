@@ -50,7 +50,13 @@ void Game::update()
 				isRunning = false;
 				return;
 			}
-			else if (scene == 1) {
+			if (chat_mode) {
+				chat_mode = false;
+				ZeroMemory(chat_message, sizeof(chat_message));
+				text_input = "";
+				return;
+			}
+			if (scene == 1) {
 				//cout << "Disconnected!" << endl;
 				connected = false;
 				return;
@@ -64,8 +70,11 @@ void Game::update()
 		draw_main();
 	}
 	else if (scene == 1) {
-		if (input)
+		if (input && chat_mode)
+			chat_mode_events();
+		else if (input)
 			game_handle_events();
+		
 		players_mtx.lock();
 		draw_game();
 		timer();
@@ -77,7 +86,7 @@ void Game::timer()
 {
 	for (auto& player : players) {
 		if (player.second.chat_time != 0) {
-			if (player.second.chat_time + 2000 < static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count())) {
+			if (player.second.chat_time + 5000 < static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count())) {
 				//cout << player.second.chat_time << " " << duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() << endl;
 				player.second.chat_time = 0;
 				player.second.chat.clear();
@@ -217,8 +226,9 @@ void Game::draw_game()
 	if(information_mode)
 		draw_information_mode();
 	
-	if (chat_mode)
+	if (chat_mode) {
 		draw_chat_mode();
+	}
 }
 
 void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
@@ -279,11 +289,38 @@ void Game::draw_information_mode()
 
 void Game::draw_chat_mode()
 {
-	draw_sfml_rect(TI{ 10, WIDTH - 40 }, TI{ 400, 30 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
-	/*int chat_height = 0;
-	for (auto& chat : chat_messages) {
-		draw_sfml_text_s(TI{ 15, 750 + chat_height++ * 20 }, chat, sf::Color::Black, 17);
-	}*/
+	draw_sfml_rect(TI{ 10, HEIGHT - 40 }, TI{ 400, 30 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	int chat_height = 0;
+
+	draw_sfml_text(TI{ 15, HEIGHT - 40 }, (char*)chat_message, sf::Color::Black, 20);
+}
+
+void Game::chat_mode_events()
+{
+	if (chat_start) {	//채팅 시작할때 t버튼 먹는거 제거
+		chat_start = false;
+		ZeroMemory(chat_message, sizeof(chat_message));
+		text_input = "";
+		return;
+	}
+	
+	if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Backspace && text_input.size()) {
+		//지우기
+		text_input.pop_back();
+		strcpy(chat_message, text_input.c_str());
+	}
+	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 330) {
+		//전송
+		chat_flag = true;
+		chat_mode = false;
+	}
+	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 50) {
+		// Only add ASCII characters
+		if (static_cast<char>(sfml_event.text.unicode) > 30) {		//지우는거랑 엔터 안먹히게 제한
+			text_input += static_cast<char>(sfml_event.text.unicode);
+			strcpy(chat_message, text_input.c_str());
+		}
+	}
 }
 
 void Game::game_handle_events()
@@ -314,14 +351,18 @@ void Game::game_handle_events()
 		if (sfml_event.key.code == sf::Keyboard::Tab) {
 			if (information_mode)
 				information_mode = false;
-			else
+			else {
 				information_mode = true;
+			}
 		}
 		if (sfml_event.key.code == sf::Keyboard::T) {
 			if (chat_mode)
 				chat_mode = false;
-			else
+			else {
+				information_mode = false;
 				chat_mode = true;
+				chat_start = true;
+			}
 		}
 	}
 }

@@ -177,6 +177,9 @@ void SESSION::send_out_packet(int client_id)
 
 void SESSION::send_chat_packet(int id, const char* message)
 {
+	if (this->client_id >= MAX_USER)
+		return;
+
 	SC_CHAT_PACKET packet;
 	packet.client_id = id;
 	strcpy_s(packet.message, message);
@@ -367,6 +370,22 @@ void process_packet(int client_id, char* packet)
 				}
 			}
 		}
+		break;
+	}
+	case P_CS_CHAT:
+	{
+		SESSION* mumbling_client = &clients[client_id];
+		CS_CHAT_PACKET* recv_packet = reinterpret_cast<CS_CHAT_PACKET*>(packet);
+		
+		mumbling_client->view_list_mtx.lock();
+		unordered_set<int> mumbling_view_list = mumbling_client->view_list;
+		mumbling_client->view_list_mtx.unlock();
+		
+		mumbling_client->send_chat_packet(client_id, recv_packet->message);
+		for (auto& hearing_client : mumbling_view_list) {
+			clients[hearing_client].send_chat_packet(client_id, recv_packet->message);
+		}
+		cout << "client " << client_id << " : " << recv_packet->message << endl;
 		break;
 	}
 	default: cout << "Unknown Packet Type" << endl; break;

@@ -100,6 +100,17 @@ void send_move_packet()
 	game->move_flag = false;
 }
 
+void send_chat_packet()
+{
+	CS_CHAT_PACKET chat_packet;
+	memcpy(chat_packet.message, game->chat_message, MAX_CHAT);
+	send((char*)&chat_packet);
+	game->chat_flag = false;
+	ZeroMemory(game->chat_message, sizeof(game->chat_message));
+	game->text_input = "";
+	cout << "send chat" << endl;
+}
+
 void process_packet(char* packet)
 {
 	switch (packet[1]) {
@@ -155,7 +166,7 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		game->players[client_id].chat = recv_packet->message;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
-		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
+		cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
 		break;
 	}
 	case P_SC_LOGIN:
@@ -216,6 +227,9 @@ DWORD __stdcall process(LPVOID arg)
 		while (game->get_running() && game->connected) {
 			if (game->move_flag) {
 				send_move_packet();
+			}
+			if (game->chat_flag) {
+				send_chat_packet();
 			}
 			SleepEx(10, true);
 		}

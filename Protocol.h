@@ -21,8 +21,11 @@ constexpr int VIEW_RANGE = (CLIENT_RANGE - 1) / 2;	//Server
 
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
+constexpr int MAX_CHAT = 100;
+
 constexpr char P_CS_LOGIN = 0;
 constexpr char P_CS_MOVE = 1;
+constexpr char P_CS_CHAT = 2;
 
 constexpr char P_SC_LOGIN = 64;
 constexpr char P_SC_MOVE = 65;
@@ -77,6 +80,12 @@ struct CS_MOVE_PACKET {
 	KS ks;
 	unsigned int time{};
 };
+struct CS_CHAT_PACKET {
+	unsigned char size = sizeof(CS_CHAT_PACKET);
+	unsigned char type = P_CS_CHAT;
+
+	char message[MAX_CHAT]{};
+};
 
 //SERVER TO CLIENT
 struct SC_LOGIN_PACKET {
@@ -105,7 +114,7 @@ struct SC_CHAT_PACKET {
 	unsigned char type = P_SC_CHAT;
 
 	int client_id;
-	char message[100];
+	char message[MAX_CHAT]{};
 };
 
 #pragma pack (pop)
