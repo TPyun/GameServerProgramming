@@ -151,11 +151,11 @@ void ProcessPacket(int ci, unsigned char packet[])
 	{
 		break;
 	}
-	case P_SC_LOGIN:
+	case P_SC_LOGIN_INFO:
 	{
 		g_clients[ci].connected = true;
 		active_clients++;
-		SC_LOGIN_PACKET* login_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		SC_LOGIN_INFO_PACKET* login_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
 		int my_id = ci;
 		client_map[login_packet->client_id] = my_id;
 		g_clients[my_id].id = login_packet->client_id;
@@ -164,6 +164,18 @@ void ProcessPacket(int ci, unsigned char packet[])
 		break;
 	}
 	case P_SC_CHAT: 
+	{
+		break;
+	}
+	case P_SC_DIRECTION:
+	{
+		break;
+	}
+	case P_SC_ATTACK:
+	{
+		break;
+	}
+	case P_SC_IN:
 	{
 		break;
 	}
@@ -318,9 +330,9 @@ void Adjust_Number_Of_Client()
 
 	CS_LOGIN_PACKET l_packet;
 
-	/*int temp = num_connections;
-	sprintf_s(l_packet.name, "%d", temp);
-	l_packet.size = sizeof(l_packet);
+	int temp = num_connections;
+	sprintf_s(l_packet.name, "Dummy %d", temp);
+	/*l_packet.size = sizeof(l_packet);
 	l_packet.type = CS_LOGIN;*/
 	SendPacket(num_connections, &l_packet);
 

@@ -24,7 +24,6 @@ Game::Game()
 		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
 			cout << "Image not loaded!" << endl;
 		else {
-			player_texture->setSmooth(true);
 			player_sprite[act].setTexture(player_texture[act]);
 		}
 	}
@@ -71,7 +70,7 @@ void Game::update()
 	}
 	else if (scene == 1) {
 		if (input && chat_mode)
-			chat_mode_events();
+			chat_mode_handle_events();
 		else if (input)
 			game_handle_events();
 		
@@ -84,14 +83,18 @@ void Game::update()
 
 void Game::timer()
 {
+	unsigned int current_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	for (auto& player : players) {
 		if (player.second.chat_time != 0) {
-			if (player.second.chat_time + 5000 < static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count())) {
-				//cout << player.second.chat_time << " " << duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() << endl;
+			if (player.second.chat_time + 5000 < current_time) {
 				player.second.chat_time = 0;
 				player.second.chat.clear();
 			}
 		}
+		if (player.second.moved_time + 500 < current_time)
+			player.second.state = ST_IDLE;
+		if (player.second.attack_time + 300 > current_time)
+			player.second.state = ST_ATTACK;
 	}
 }
 
@@ -112,16 +115,19 @@ void Game::draw_main()
 	draw_sfml_rect(TI{ 99, 130 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
 	draw_sfml_rect(TI{ 99, 230 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
 	draw_sfml_rect(TI{ 99, 330 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
+	draw_sfml_rect(TI{ 99, 430 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
 	
 	draw_sfml_text(TI{ 60, input_height }, (char*)"Tab", sf::Color(200, 200, 200), 17);
 	
 	draw_sfml_text(TI{ 100, 100 }, (char*)"IP Address", sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 200 }, (char*)"Port", sf::Color(200, 200, 200), 17);
-	draw_sfml_text(TI{ 100, 300 }, (char*)"Play Game", sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 300 }, (char*)"Name", sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 400 }, (char*)"Play Game", sf::Color(200, 200, 200), 17);
 	
 	draw_sfml_text(TI{ 100, 130 }, (char*)ip_address, sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 230 }, (char*)Port, sf::Color(200, 200, 200), 17);
-	draw_sfml_text(TI{ 100, 330 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 330 }, (char*)Name, sf::Color(200, 200, 200), 17);
+	draw_sfml_text(TI{ 100, 430 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
 }
 
 void Game::main_handle_events()
@@ -129,16 +135,21 @@ void Game::main_handle_events()
 	if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Backspace && text_input.size()) {
 		//cout << "Back" << endl;
 		text_input.pop_back();
-		if (input_height == 130) {
+		switch (input_height) {
+		case 130:
 			strcpy(ip_address, text_input.c_str());
-		}
-		else if (input_height == 230) {
+			break;
+		case 230:
 			strcpy(Port, text_input.c_str());
+			break;
+		case 330:
+			strcpy(Name, text_input.c_str());
+			break;
 		}
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
 		//cout << "Tab" << endl;
-		if (input_height == 330) {
+		if (input_height == 430) {
 			input_height = 130;
 		}
 		else {
@@ -146,7 +157,7 @@ void Game::main_handle_events()
 		}
 		text_input = "";
 	}
-	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 330) {
+	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 430) {
 		try_connect = true;
 	}
 	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 20) {
@@ -154,11 +165,17 @@ void Game::main_handle_events()
 		// Only add ASCII characters
 		if (static_cast<char>(sfml_event.text.unicode) > 30) {		//지우는거랑 엔터 안먹히게 제한
 			text_input += static_cast<char>(sfml_event.text.unicode);
-			if (input_height == 130) {
+			
+			switch (input_height) {
+			case 130:
 				strcpy(ip_address, text_input.c_str());
-			}
-			else if (input_height == 230) {
+				break;
+			case 230:
 				strcpy(Port, text_input.c_str());
+				break;
+			case 330:
+				strcpy(Name, text_input.c_str());
+				break;
 			}
 		}
 	}
@@ -214,9 +231,10 @@ void Game::draw_game()
 
 	// Draw the players in sorted order
 	for (const auto& player : sorted_players) {
-		draw_sprite(player_sprite[1], player.first, sf::Color::White, 4); // Walk
+		draw_sprite(player.first, sf::Color::White, 4); // Walk
 		TI related_pos = get_relative_location(player.second.position);
-		draw_sfml_text_s({ related_pos.x - (int)std::to_string(player.first).length() * 4, related_pos.y - 110 }, std::to_string(player.first), sf::Color::White, 14);
+		string name(player.second.name);
+		draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 110}, name, sf::Color::White, 14);
 
 		if (player.second.chat_time) {		//draw chat
 			draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 130 }, player.second.chat, sf::Color::White, 14);
@@ -225,31 +243,40 @@ void Game::draw_game()
 	
 	if(information_mode)
 		draw_information_mode();
-	
-	if (chat_mode) {
+	if (chat_mode) 
 		draw_chat_mode();
-	}
 }
 
-void Game::draw_sprite(sf::Sprite sprite, int id, sf::Color color, char size)
+void Game::draw_sprite(int id, sf::Color color, char size)
 {
 	Player* this_player = &players[id];
 	
-	TUC sprite_size{ 16,24 };
-	char sprite_length = 4;
-	sprite.setColor(color);
-	TI position{};
+	TI position;
 	if (id == my_id)
 		position = TI{ WIDTH / 2, HEIGHT / 2 };
 	else
 		position = get_relative_location(this_player->position);
+	TUC sprite_size;
+	char sprite_length = 4;
 	Direction direction = this_player->direction;
 	unsigned char sprite_i = this_player->sprite_iter;
-	sprite.setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
-	sprite.setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
-	sprite.setScale(size, size);
-	sfml_window->draw(sprite);
+	
+	player_sprite[this_player->state].setColor(color);
+	player_sprite[this_player->state].setScale(size, size);
 
+	switch (this_player->state) {
+	case ST_MOVE:
+	case ST_IDLE:
+		sprite_size = { 16, 24 };
+		break;
+	case ST_ATTACK:
+		sprite_size = { 24, 24 };
+		break;
+	}
+
+	player_sprite[this_player->state].setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
+	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
+	sfml_window->draw(player_sprite[this_player->state]);
 	this_player->sprite_iter++;
 }
 
@@ -289,13 +316,11 @@ void Game::draw_information_mode()
 
 void Game::draw_chat_mode()
 {
-	draw_sfml_rect(TI{ 10, HEIGHT - 40 }, TI{ 400, 30 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
-	int chat_height = 0;
-
-	draw_sfml_text(TI{ 15, HEIGHT - 40 }, (char*)chat_message, sf::Color::Black, 20);
+	draw_sfml_rect(TI{ 10, HEIGHT - 30 }, TI{ 400, 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	draw_sfml_text(TI{ 15, HEIGHT - 30 }, (char*)chat_message, sf::Color::Black, 17);
 }
 
-void Game::chat_mode_events()
+void Game::chat_mode_handle_events()
 {
 	if (chat_start) {	//채팅 시작할때 t버튼 먹는거 제거
 		chat_start = false;
@@ -309,10 +334,11 @@ void Game::chat_mode_events()
 		text_input.pop_back();
 		strcpy(chat_message, text_input.c_str());
 	}
-	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 330) {
+	if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return) {
 		//전송
 		chat_flag = true;
 		chat_mode = false;
+		cout << "chat message: " << chat_message << endl;
 	}
 	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 50) {
 		// Only add ASCII characters
@@ -325,27 +351,59 @@ void Game::chat_mode_events()
 
 void Game::game_handle_events()
 {
-	ZeroMemory(&key_input, sizeof(KS));
 	if (sfml_event.type == sf::Event::KeyPressed) {
 		if (!move_flag) {
 			bool move = false;
-			if (sfml_event.key.code == sf::Keyboard::Up) {
+			if (sfml_event.key.code == sf::Keyboard::W) {
 				key_input.up = true;
 				move = true;
 			}
-			if (sfml_event.key.code == sf::Keyboard::Down) {
+			if (sfml_event.key.code == sf::Keyboard::S) {
 				key_input.down = true;
 				move = true;
 			}
-			if (sfml_event.key.code == sf::Keyboard::Left) {
+			if (sfml_event.key.code == sf::Keyboard::A) {
 				key_input.left = true;
 				move = true;
 			}
-			if (sfml_event.key.code == sf::Keyboard::Right) {
+			if (sfml_event.key.code == sf::Keyboard::D) {
 				key_input.right = true;
 				move = true;
 			}
 			move_flag = move;
+		}
+
+		if (!direction_flag) {
+			bool changed_dir = false;
+			if (sfml_event.key.code == sf::Keyboard::Up) {
+				if (players[my_id].direction != DIR_UP) {
+					players[my_id].direction = DIR_UP;
+					changed_dir = true;
+				}
+			}
+			if (sfml_event.key.code == sf::Keyboard::Down) {
+				if (players[my_id].direction != DIR_DOWN) {
+					players[my_id].direction = DIR_DOWN;
+					changed_dir = true;
+				}
+			}
+			if (sfml_event.key.code == sf::Keyboard::Left) {
+				if (players[my_id].direction != DIR_LEFT) {
+					players[my_id].direction = DIR_LEFT;
+					changed_dir = true;
+				}
+			}
+			if (sfml_event.key.code == sf::Keyboard::Right) {
+				if (players[my_id].direction != DIR_RIGHT) {
+					players[my_id].direction = DIR_RIGHT;
+					changed_dir = true;
+				}
+			}
+			direction_flag = changed_dir;
+		}
+		
+		if (sfml_event.key.code == sf::Keyboard::Space && !attack_flag) {
+			attack_flag = true;
 		}
 
 		if (sfml_event.key.code == sf::Keyboard::Tab) {
@@ -364,6 +422,7 @@ void Game::game_handle_events()
 				chat_start = true;
 			}
 		}
+		
 	}
 }
 

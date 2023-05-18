@@ -61,9 +61,9 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		return;
 	}
 	//패킷 잘리면 이어 붙이기
-	if (remain_data) {
+	/*if (remain_data) {
 		cout << "remain_data: " << remain_data << endl;
-	}
+	}*/
 	int data_to_proccess = num_bytes + remain_data;
 	char* packet = recv_buffer;
 	while (data_to_proccess > 0) {
@@ -97,7 +97,27 @@ void send_move_packet()
 	move_packet.ks = game->key_input;
 	move_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	send((char*)&move_packet);
+	ZeroMemory(&game->key_input, sizeof(KS));
 	game->move_flag = false;
+}
+
+void send_direction_packet()
+{
+	CS_DIRECTION_PACKET direction_packet;
+	direction_packet.direction = game->players[game->my_id].direction;
+	send((char*)&direction_packet);
+	game->direction_flag = false;
+}
+
+void send_attack_packet()
+{
+	CS_ATTACK_PACKET attack_packet;
+	attack_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+	send((char*)&attack_packet);
+	game->attack_flag = false;
+	
+	game->players[game->my_id].sprite_iter = 0;
+	game->players[game->my_id].attack_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 }
 
 void send_chat_packet()
@@ -106,9 +126,14 @@ void send_chat_packet()
 	memcpy(chat_packet.message, game->chat_message, MAX_CHAT);
 	send((char*)&chat_packet);
 	game->chat_flag = false;
+
+	game->players[game->my_id].chat = game->chat_message;
+	game->players[game->my_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+	
 	ZeroMemory(game->chat_message, sizeof(game->chat_message));
 	game->text_input = "";
-	cout << "send chat" << endl;
+	
+	//cout << "send chat" << endl;
 }
 
 void process_packet(char* packet)
@@ -120,33 +145,65 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		game->players_mtx.lock();
 		if(game->players[client_id].position.x < recv_packet->position.x){
-			game->players[client_id].direction = RIGHT;
-			game->players[client_id].state = MOVE;
+			game->players[client_id].direction = DIR_RIGHT;
+			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.x > recv_packet->position.x){
-			game->players[client_id].direction = LEFT; 
-			game->players[client_id].state = MOVE;
+			game->players[client_id].direction = DIR_LEFT;
+			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.y > recv_packet->position.y){
-			game->players[client_id].direction = UP; 
-			game->players[client_id].state = MOVE;
+			game->players[client_id].direction = DIR_UP;
+			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.y < recv_packet->position.y) {
-			game->players[client_id].direction = DOWN;
-			game->players[client_id].state = MOVE;
+			game->players[client_id].direction = DIR_DOWN;
+			game->players[client_id].state = ST_MOVE;
 		}
-		else{
-			game->players[client_id].direction = DOWN;
-			game->players[client_id].state = IDLE;
-		}
-		game->players[client_id].position.x = recv_packet->position.x;
-		game->players[client_id].position.y = recv_packet->position.y;
+
+		game->players[client_id].position = recv_packet->position;
 		game->players[client_id].id = client_id;
+		game->players[client_id].moved_time = recv_packet->time;
 		game->players_mtx.unlock();
 
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
+		break;
+	}
+	case P_SC_DIRECTION:
+	{
+		SC_DIRECTION_PACKET* recv_packet = reinterpret_cast<SC_DIRECTION_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		game->players_mtx.lock();
+		game->players[client_id].direction = recv_packet->direction;
+		game->players_mtx.unlock();
+		//cout << "client_id: " << client_id << " direction: " << recv_packet->direction << endl;
+		break;
+	}
+	case P_SC_ATTACK:
+	{
+		SC_ATTACK_PACKET* recv_packet = reinterpret_cast<SC_ATTACK_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+
+		game->players_mtx.lock();
+		game->players[client_id].attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		game->players[client_id].sprite_iter = 0;
+		game->players_mtx.unlock();
+		//cout << recv_packet->client_id << " attack" << endl;
+		break;
+	}
+	case P_SC_IN:
+	{
+		SC_IN_PACKET* recv_packet = reinterpret_cast<SC_IN_PACKET*>(packet);
+		int client_id = recv_packet->client_id;
+		
+		game->players_mtx.lock();
+		game->players[client_id].position = recv_packet->position;
+		game->players[client_id].state = ST_IDLE;
+		memcpy(game->players[client_id].name, recv_packet->name, 30);
+		game->players_mtx.unlock();
+		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
 		break;
 	}
 	case P_SC_OUT:
@@ -166,18 +223,21 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		game->players[client_id].chat = recv_packet->message;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
-		cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
+		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
 		break;
 	}
-	case P_SC_LOGIN:
+	case P_SC_LOGIN_INFO:
 	{
-		SC_LOGIN_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_PACKET*>(packet);
+		SC_LOGIN_INFO_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;
 		game->players_mtx.lock();
 		game->players[game->my_id].position.x = recv_packet->position.x;
 		game->players[game->my_id].position.y = recv_packet->position.y;
 		game->players[game->my_id].id = game->my_id;
+		memcpy(game->players[game->my_id].name, recv_packet->name, sizeof(recv_packet->name));
 		game->players_mtx.unlock();
+		
+		cout << (char*)game->players[game->my_id].name << endl;
 		//cout << "my id: " << game->my_id << endl;
 		
 		game->initialize_ingame();
@@ -222,14 +282,21 @@ DWORD __stdcall process(LPVOID arg)
 		game->connected = true;
 
 		CS_LOGIN_PACKET login_packet;
+		memcpy(login_packet.name, game->Name, sizeof(login_packet.name));
 		send((char*)&login_packet);
 		recv();
 		while (game->get_running() && game->connected) {
 			if (game->move_flag) {
 				send_move_packet();
 			}
+			if (game->direction_flag) {
+				send_direction_packet();
+			}
 			if (game->chat_flag) {
 				send_chat_packet();
+			}
+			if (game->attack_flag) {
+				send_attack_packet();
 			}
 			SleepEx(10, true);
 		}

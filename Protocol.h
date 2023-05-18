@@ -9,7 +9,7 @@
 
 constexpr int BUFSIZE = 200;
 constexpr int MAX_USER = 2100;
-constexpr int MAX_NPC = 200000;
+constexpr int MAX_NPC = 0;
 
 constexpr int WIDTH = 750;	//Client
 constexpr int HEIGHT = 750;	//Client
@@ -26,11 +26,16 @@ constexpr int MAX_CHAT = 100;
 constexpr char P_CS_LOGIN = 0;
 constexpr char P_CS_MOVE = 1;
 constexpr char P_CS_CHAT = 2;
+constexpr char P_CS_ATTACK = 3;
+constexpr char P_CS_DIRECTION = 4;
 
-constexpr char P_SC_LOGIN = 64;
+constexpr char P_SC_LOGIN_INFO = 64;
 constexpr char P_SC_MOVE = 65;
-constexpr char P_SC_OUT = 66;
-constexpr char P_SC_CHAT = 67;
+constexpr char P_SC_IN = 66;
+constexpr char P_SC_OUT = 67;
+constexpr char P_SC_CHAT = 68;
+constexpr char P_SC_ATTACK = 69;
+constexpr char P_SC_DIRECTION = 70;
 
 
 typedef struct two_ints {
@@ -72,6 +77,8 @@ typedef struct key_state {
 struct CS_LOGIN_PACKET {
 	unsigned char size = sizeof(CS_LOGIN_PACKET);
 	unsigned char type = P_CS_LOGIN;
+
+	char name[30];
 };
 struct CS_MOVE_PACKET {
 	unsigned char size = sizeof(CS_MOVE_PACKET);
@@ -80,19 +87,33 @@ struct CS_MOVE_PACKET {
 	KS ks;
 	unsigned int time{};
 };
+enum Direction { DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT };
+struct CS_DIRECTION_PACKET {
+	unsigned char size = sizeof(CS_DIRECTION_PACKET);
+	unsigned char type = P_CS_DIRECTION;
+
+	Direction direction;
+};
 struct CS_CHAT_PACKET {
 	unsigned char size = sizeof(CS_CHAT_PACKET);
 	unsigned char type = P_CS_CHAT;
 
 	char message[MAX_CHAT]{};
 };
+struct CS_ATTACK_PACKET {
+	unsigned char size = sizeof(CS_ATTACK_PACKET);
+	unsigned char type = P_CS_ATTACK;
+
+	unsigned int time{};
+};
 
 //SERVER TO CLIENT
-struct SC_LOGIN_PACKET {
-	unsigned char size = sizeof(SC_LOGIN_PACKET);
-	unsigned char type = P_SC_LOGIN;
+struct SC_LOGIN_INFO_PACKET {
+	unsigned char size = sizeof(SC_LOGIN_INFO_PACKET);
+	unsigned char type = P_SC_LOGIN_INFO;
 	
 	int client_id;
+	char name[30]{};
 	TI position;
 };
 struct SC_MOVE_PACKET {
@@ -102,6 +123,21 @@ struct SC_MOVE_PACKET {
 	int client_id;
 	TI position;
 	unsigned int time{};
+};
+struct SC_DIRECTION_PACKET {
+	unsigned char size = sizeof(SC_DIRECTION_PACKET);
+	unsigned char type = P_SC_DIRECTION;
+
+	int client_id;
+	Direction direction;
+};
+struct SC_IN_PACKET {
+	unsigned char size = sizeof(SC_IN_PACKET);
+	unsigned char type = P_SC_IN;
+
+	int client_id;
+	char name[30]{};
+	TI position;
 };
 struct SC_OUT_PACKET {
 	unsigned char size = sizeof(SC_OUT_PACKET);
@@ -115,6 +151,12 @@ struct SC_CHAT_PACKET {
 
 	int client_id;
 	char message[MAX_CHAT]{};
+};
+struct SC_ATTACK_PACKET {
+	unsigned char size = sizeof(SC_ATTACK_PACKET);
+	unsigned char type = P_SC_ATTACK;
+
+	int client_id;
 };
 
 #pragma pack (pop)

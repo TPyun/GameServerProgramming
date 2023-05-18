@@ -7,6 +7,7 @@
 #include <atomic>
 #include <unordered_set>
 #include <queue>
+#include <string>
 #include "Player.h"
 
 extern "C"
@@ -17,6 +18,7 @@ extern "C"
 }
 #pragma comment(lib, "lua54.lib")
 using namespace std;
+using namespace chrono;
 
 HANDLE h_iocp;
 enum EVENT_TYPE { EV_MOVE, EV_ATTACK };
@@ -128,8 +130,11 @@ public:
 		}
 	}
 	
-	void send_login_packet();
+	void send_login_info_packet();
 	void send_move_packet(int);
+	void send_direction_packet(int);
+	void send_attack_packet(int);
+	void send_in_packet(int);
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
 
@@ -138,7 +143,7 @@ public:
 };
 array<SESSION, MAX_USER + MAX_NPC> clients;
 
-void SESSION::send_login_packet()
+void SESSION::send_login_info_packet()
 {
 	if (this->client_id >= MAX_USER)
 		return;
@@ -146,9 +151,13 @@ void SESSION::send_login_packet()
 	player_count.fetch_add(1);
 	//cout << "Player Count : " << player_count << endl;
 	
-	player.position = randomly_spawn_player();
-	SC_LOGIN_PACKET packet;
+	//player.position = randomly_spawn_player();
+	player.position.x = rand() % 10;
+	player.position.y = rand() % 10;
+	player.direction = DIR_DOWN;
+	SC_LOGIN_INFO_PACKET packet;
 	packet.client_id = client_id;
+	memcpy(&packet.name, &player.name, sizeof(packet.name));
 	packet.position = player.position;
 	do_send(&packet);
 }
@@ -162,6 +171,39 @@ void SESSION::send_move_packet(int client_id)
 	packet.client_id = client_id;
 	packet.position = clients[client_id].player.position;
 	packet.time = clients[client_id].prev_time;
+	do_send(&packet);
+}
+
+void SESSION::send_direction_packet(int watcher_id)
+{
+	if (this->client_id >= MAX_USER)
+		return;
+	
+	SC_DIRECTION_PACKET packet;
+	packet.client_id = watcher_id;
+	packet.direction = clients[watcher_id].player.direction;
+	do_send(&packet);
+}
+
+void SESSION::send_attack_packet(int attacker_id)
+{
+	if (this->client_id >= MAX_USER)
+		return;
+	
+	SC_ATTACK_PACKET packet;
+	packet.client_id = attacker_id;
+	do_send(&packet);
+}
+
+void SESSION::send_in_packet(int entered_client_id)
+{
+	if (this->client_id >= MAX_USER)
+		return;
+
+	SC_IN_PACKET packet;
+	packet.client_id = entered_client_id;
+	packet.position = clients[entered_client_id].player.position;
+	memcpy(&packet.name, &clients[entered_client_id].player.name, sizeof(packet.name));
 	do_send(&packet);
 }
 
@@ -228,6 +270,7 @@ TI randomly_spawn_player()
 	random_device rd;
 	default_random_engine dre(rd());
 	uniform_int_distribution <int>spawn_location(0, MAP_SIZE);
+
 	return TI { spawn_location(dre), spawn_location(dre) };
 }
 
@@ -304,16 +347,21 @@ void process_packet(int client_id, char* packet)
 		}
 		
 		for (auto& new_one : new_view_list) {
-			clients[new_one].send_move_packet(client_id);
-			
 			if (old_view_list.count(new_one) == 0) {							//새로 시야에 들어온 플레이어
 				clients[new_one].insert_view_list(client_id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-				moved_client->send_move_packet(new_one);
+				moved_client->send_in_packet(new_one);
+				clients[new_one].send_in_packet(client_id);
 
+				clients[new_one].send_direction_packet(client_id);
+				moved_client->send_direction_packet(new_one);
+				
 				if (new_one >= MAX_USER) {											//NPC라면 깨우기
 					wake_up_npc(new_one);
 				}
 			}
+			else
+				clients[new_one].send_move_packet(client_id);						//기존에 있었으면 무브
+
 			//if (new_one >= MAX_USER) {												//NPC라면 깨우기
 			//	if (clients[new_one].player.position.x != moved_client->player.position.x || clients[new_one].player.position.y != moved_client->player.position.y)
 			//		continue;
@@ -341,15 +389,53 @@ void process_packet(int client_id, char* packet)
 		
 		break;
 	}
+	case P_CS_DIRECTION:
+	{
+		SESSION* watcher = &clients[client_id];
+		CS_DIRECTION_PACKET* recv_packet = reinterpret_cast<CS_DIRECTION_PACKET*>(packet);
+
+		watcher->player.direction = recv_packet->direction;
+		
+		watcher->view_list_mtx.lock();
+		unordered_set<int> watcher_view_list = watcher->view_list;
+		watcher->view_list_mtx.unlock();
+
+		for (auto& watched_id : watcher_view_list) {
+			clients[watched_id].send_direction_packet(client_id);
+		}
+
+		break;
+	}
+	case P_CS_ATTACK:
+	{
+		SESSION* attacker = &clients[client_id];
+		CS_ATTACK_PACKET* recv_packet = reinterpret_cast<CS_ATTACK_PACKET*>(packet);
+		
+		cout << client_id << " attack" << endl;
+		
+		attacker->view_list_mtx.lock();
+		unordered_set<int> attacker_view_list = attacker->view_list;
+		attacker->view_list_mtx.unlock();
+
+		for (auto& client : attacker_view_list) {
+			clients[client].send_attack_packet(client_id);
+		}
+		
+		break;
+	}
 	case P_CS_LOGIN:
 	{
 		SESSION* new_client = &clients[client_id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
-		new_client->send_login_packet();										//새로온 애한테 로그인 됐다고 전송
+
+		memcpy(new_client->player.name, recv_packet->name, sizeof(new_client->player.name));
+
+		new_client->send_login_info_packet();										//새로온 애한테 로그인 됐다고 전송
 		{
 			lock_guard<mutex> m{ clients[client_id].state_mtx };
 			clients[client_id].state = ST_INGAME;
 		}
+		
 
 		for (auto& old_client : clients) {
 			{
@@ -362,8 +448,11 @@ void process_packet(int client_id, char* packet)
 				old_client.insert_view_list(client_id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
 				new_client->insert_view_list(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
 				
-				new_client->send_move_packet(old_client.client_id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
-				old_client.send_move_packet(client_id);							//시야 안에 클라한테 새로온 애 위치 전송
+				new_client->send_in_packet(old_client.client_id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
+				old_client.send_in_packet(client_id);							//시야 안에 클라한테 새로온 애 위치 전송.
+				
+				new_client->send_direction_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
+				old_client.send_direction_packet(client_id);						//시야 안에 클라한테 새로온 애 방향 전송.
 				
 				if (old_client.client_id >= MAX_USER) {							//NPC라면 깨우기
 					wake_up_npc(old_client.client_id);
@@ -381,7 +470,6 @@ void process_packet(int client_id, char* packet)
 		unordered_set<int> mumbling_view_list = mumbling_client->view_list;
 		mumbling_client->view_list_mtx.unlock();
 		
-		mumbling_client->send_chat_packet(client_id, recv_packet->message);
 		for (auto& hearing_client : mumbling_view_list) {
 			clients[hearing_client].send_chat_packet(client_id, recv_packet->message);
 		}
@@ -527,7 +615,9 @@ void spawn_npc()
 		clients[npc_id].view_list.clear();
 		clients[npc_id].state = ST_INGAME;
 		clients[npc_id].player.position = randomly_spawn_player();
-
+		
+		sprintf_s(clients[npc_id].player.name, "NPC %d", npc_id);
+		
 		//auto L = clients[npc_id].lua = luaL_newstate();
 		//luaL_openlibs(L);
 		//luaL_loadfile(L, "npc.lua");
@@ -578,6 +668,7 @@ void random_move_npc(int npc_id)
 	}
 	
 	moved_npc->player.key_check();
+	moved_npc->prev_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	
 	int num_clients = 1;
 	for (int user_id = 0; user_id < MAX_USER; ++user_id) {				//유저만 검색
@@ -593,9 +684,12 @@ void random_move_npc(int npc_id)
 		++num_clients;
 	}
 	for (auto& new_one : new_view_list) {
-		clients[new_one].send_move_packet(npc_id);
 		if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
 			clients[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+			clients[new_one].send_in_packet(npc_id);					//새로 시야에 들어온 플레이어에게 움직인 플레이어 정보 전송
+		}
+		else {
+			clients[new_one].send_move_packet(npc_id);
 		}
 	}
 	for (auto& old_one : old_view_list) {
