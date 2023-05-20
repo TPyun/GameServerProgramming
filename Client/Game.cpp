@@ -93,7 +93,8 @@ void Game::timer()
 		}
 		if (player.second.moved_time + 500 < current_time)
 			player.second.state = ST_IDLE;
-		if (player.second.attack_time + 300 > current_time)
+	
+		if (player.second.attack_time + 400 > current_time)
 			player.second.state = ST_ATTACK;
 	}
 }
@@ -277,7 +278,9 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 	player_sprite[this_player->state].setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
 	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
 	sfml_window->draw(player_sprite[this_player->state]);
-	this_player->sprite_iter++;
+	
+	this_player->sprite_iter+=2;
+
 }
 
 void Game::draw_information_mode()

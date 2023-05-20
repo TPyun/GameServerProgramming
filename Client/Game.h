@@ -74,5 +74,4 @@ private:
 	bool chat_start = false;
 	
 	int input_height = 130;
-
 };

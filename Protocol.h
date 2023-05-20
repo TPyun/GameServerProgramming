@@ -9,7 +9,7 @@
 
 constexpr int BUFSIZE = 200;
 constexpr int MAX_USER = 2100;
-constexpr int MAX_NPC = 0;
+constexpr int MAX_NPC = 200000;
 
 constexpr int WIDTH = 750;	//Client
 constexpr int HEIGHT = 750;	//Client
