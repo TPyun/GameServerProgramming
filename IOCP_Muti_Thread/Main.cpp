@@ -411,7 +411,7 @@ void process_packet(int client_id, char* packet)
 		SESSION* attacker = &clients[client_id];
 		CS_ATTACK_PACKET* recv_packet = reinterpret_cast<CS_ATTACK_PACKET*>(packet);
 		
-		cout << client_id << " attack" << endl;
+		//cout << client_id << " attack" << endl;
 		
 		attacker->view_list_mtx.lock();
 		unordered_set<int> attacker_view_list = attacker->view_list;
@@ -420,7 +420,6 @@ void process_packet(int client_id, char* packet)
 		for (auto& client : attacker_view_list) {
 			clients[client].send_attack_packet(client_id);
 		}
-		
 		break;
 	}
 	case P_CS_LOGIN:

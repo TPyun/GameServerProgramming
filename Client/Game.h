@@ -19,6 +19,7 @@ public:
 	void clear();
 	
 	bool get_running() { return isRunning; }
+	void initialize_main();
 	void initialize_ingame();
 
 	//ingame scene
@@ -74,4 +75,5 @@ private:
 	bool chat_start = false;
 	
 	int input_height = 130;
+	bool input_warning = false;
 };

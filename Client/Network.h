@@ -305,6 +305,7 @@ DWORD __stdcall process(LPVOID arg)
 		game->players.clear();
 		game->players_mtx.unlock();
 		game->scene = 0;
+		game->initialize_main();
 		closesocket(server_socket);
 		WSACleanup();
 	}

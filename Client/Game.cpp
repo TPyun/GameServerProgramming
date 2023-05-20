@@ -28,7 +28,7 @@ Game::Game()
 		}
 	}
 	
-	sfml_window->setFramerateLimit(200);
+	sfml_window->setFramerateLimit(120);
 	cout << "Press Tab to move another input box" << endl;
 	cout << "Press Enter to connect" << endl;
 }
@@ -85,17 +85,25 @@ void Game::timer()
 {
 	unsigned int current_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	for (auto& player : players) {
+		if (current_time - player.second.sprite_time > 100) {
+			player.second.sprite_iter++;
+			player.second.sprite_time = current_time;
+			cout << "Sprite iter: " << (int)player.second.sprite_iter << endl;
+		}
+		
 		if (player.second.chat_time != 0) {
 			if (player.second.chat_time + 5000 < current_time) {
 				player.second.chat_time = 0;
 				player.second.chat.clear();
 			}
 		}
+
 		if (player.second.moved_time + 500 < current_time)
 			player.second.state = ST_IDLE;
 	
-		if (player.second.attack_time + 400 > current_time)
+		if (player.second.attack_time + 300 > current_time)
 			player.second.state = ST_ATTACK;
+
 	}
 }
 
@@ -129,6 +137,9 @@ void Game::draw_main()
 	draw_sfml_text(TI{ 100, 230 }, (char*)Port, sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 330 }, (char*)Name, sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 430 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
+	
+	if(input_warning)
+		draw_sfml_text(TI{ 100, 500 }, (char*)"Please Fill All Fields", sf::Color(200, 0, 0), 17);
 }
 
 void Game::main_handle_events()
@@ -150,16 +161,29 @@ void Game::main_handle_events()
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
 		//cout << "Tab" << endl;
-		if (input_height == 430) {
-			input_height = 130;
-		}
-		else {
+		switch (input_height) {
+		case 130:
 			input_height += 100;
+			text_input = Port;
+			break;
+		case 230:
+			input_height += 100;
+			text_input = Name;
+			break;
+		case 330:
+			input_height += 100;
+			break;
+		case 430:
+			input_height = 130;
+			text_input = ip_address;
+			break;
 		}
-		text_input = "";
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 430) {
-		try_connect = true;
+		if (strlen(ip_address) && strlen(Port) && strlen(Name))
+			try_connect = true;
+		else
+			input_warning = true;
 	}
 	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 20) {
 		//cout << "Typing: " << static_cast<char>(sfml_event.text.unicode) << endl;
@@ -186,6 +210,13 @@ TI Game::get_relative_location(TI position)
 {
 	TI relative_position = { (WIDTH / 2) + (position.x - players[my_id].position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].position.y) * BLOCK_SIZE };
 	return relative_position;
+}
+
+void Game::initialize_main()
+{
+	input_height = 130;
+	text_input = "";
+	input_warning = false;
 }
 
 void Game::initialize_ingame()
@@ -276,11 +307,8 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 	}
 
 	player_sprite[this_player->state].setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
-	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i / 20 % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
+	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
 	sfml_window->draw(player_sprite[this_player->state]);
-	
-	this_player->sprite_iter+=2;
-
 }
 
 void Game::draw_information_mode()
@@ -425,7 +453,6 @@ void Game::game_handle_events()
 				chat_start = true;
 			}
 		}
-		
 	}
 }
 
