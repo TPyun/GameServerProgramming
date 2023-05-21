@@ -264,13 +264,13 @@ void Game::draw_game()
 
 	// Draw the players in sorted order
 	for (const auto& player : sorted_players) {
-		draw_sprite(player.first, sf::Color::White, 4); // Walk
+		draw_sprite(player.first, sf::Color::White, 3); // Walk
 		TI related_pos = get_relative_location(player.second.position);
 		string name(player.second.name);
-		draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 110}, name, sf::Color::White, 14);
+		draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80}, name, sf::Color::White, 14);
 
 		if (player.second.chat_time) {		//draw chat
-			draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 130 }, player.second.chat, sf::Color::White, 14);
+			draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
 		}
 	}
 	

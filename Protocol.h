@@ -19,6 +19,7 @@ constexpr int MAP_SIZE = 2000;		//Server
 constexpr int CLIENT_RANGE = 21;		//Client
 constexpr int VIEW_RANGE = 7;	//Server
 constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
+constexpr int SECTOR_NUM = MAP_SIZE / SECTOR_SIZE + 1;	//Server
 
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 

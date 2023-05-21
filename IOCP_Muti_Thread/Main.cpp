@@ -277,24 +277,18 @@ void SESSION::erase_view_list(int new_client_id)
 
 void initialize_sector_list()
 {
-	int sector_num;
-	if (MAP_SIZE % SECTOR_SIZE)
-		sector_num = MAP_SIZE / SECTOR_SIZE + 1;
-	else
-		sector_num = MAP_SIZE / SECTOR_SIZE;
-
-	sector_list = new unordered_set<int>*[sector_num];
-	for (int i = 0; i < sector_num; ++i) {
-		sector_list[i] = new unordered_set<int>[sector_num];
+	sector_list = new unordered_set<int>*[SECTOR_NUM];
+	for (int i = 0; i < SECTOR_NUM; ++i) {
+		sector_list[i] = new unordered_set<int>[SECTOR_NUM];
 	}
-	for (int i = 0; i < sector_num; ++i) {
-		for (int j = 0; j < sector_num; ++j) {
+	for (int i = 0; i < SECTOR_NUM; ++i) {
+		for (int j = 0; j < SECTOR_NUM; ++j) {
 		}
 	}
 	
-	sector_mutex = new mutex * [sector_num];
-	for (int i = 0; i < sector_num; ++i) {
-		sector_mutex[i] = new mutex[sector_num];
+	sector_mutex = new mutex * [SECTOR_NUM];
+	for (int i = 0; i < SECTOR_NUM; ++i) {
+		sector_mutex[i] = new mutex[SECTOR_NUM];
 	}
 }
 
@@ -338,6 +332,20 @@ void get_from_sector_list(int id, unordered_set<int>& sector)
 	}
 }
 
+void show_all_sector_list()
+{
+	system("cls");
+	int total = 0;
+	for (int i = 0; i < SECTOR_NUM; ++i) {
+		for (int j = 0; j < SECTOR_NUM; ++j) {
+			printf("%2d ", sector_list[i][j].size());
+			total += sector_list[i][j].size();
+		}
+		cout << endl;
+	}
+	cout << "total: " << total << endl;
+}
+
 void disconnect(int client_id)
 {
 	{
@@ -361,7 +369,6 @@ void disconnect(int client_id)
 		clients[client_id].is_active_npc = false;
 		return;
 	}
-
 	closesocket(clients[client_id].socket);
 
 	player_count.fetch_sub(1);
@@ -650,8 +657,7 @@ void work_thread()
 			continue;
 		}
 
-		switch (ex_over->completion_type) 
-		{
+		switch (ex_over->completion_type) {
 		case OP_SEND: 
 		{
 			delete ex_over;
@@ -946,4 +952,3 @@ int main()
 	closesocket(global_server_socket);
 	WSACleanup();
 }
-
