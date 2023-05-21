@@ -27,6 +27,19 @@ Game::Game()
 			player_sprite[act].setTexture(player_texture[act]);
 		}
 	}
+
+	char sound_file[6][20]{ "yell.wav", "hit.wav", "attack_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav"};
+	for (int type = 0; type < 6; type++) {
+		char sounds_root[30] = "Sounds/";
+		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
+			cout << "Sound not loaded!" << endl;
+		else {
+			sounds[type].setBuffer(sound_buffer[type]);
+			sounds[type].setVolume(10);
+		}
+	}
+	sounds[SOUND_MOVE].setLoop(true);
+	sounds[SOUND_TURN_ON].play();
 	
 	sfml_window->setFramerateLimit(120);
 	cout << "Press Tab to move another input box" << endl;
@@ -98,12 +111,13 @@ void Game::timer()
 			}
 		}
 
-		if (player.second.moved_time + 500 < current_time)
+		if (player.second.moved_time + 500 < current_time) {
 			player.second.state = ST_IDLE;
+		}
 	
-		if (player.second.attack_time + 300 > current_time)
+		if (player.second.attack_time + 300 > current_time) {
 			player.second.state = ST_ATTACK;
-
+		}
 	}
 }
 
@@ -214,6 +228,9 @@ TI Game::get_relative_location(TI position)
 
 void Game::initialize_main()
 {
+	stop_sound(SOUND_ENV);
+	play_sound(SOUND_TURN_ON);
+	
 	input_height = 130;
 	text_input = "";
 	input_warning = false;
@@ -222,11 +239,24 @@ void Game::initialize_main()
 
 void Game::initialize_ingame()
 {
+	play_sound(SOUND_ENV);
+	stop_sound(SOUND_TURN_ON);
+	
 	information_mode = false;
 	chat_mode = false;
 	scene = 1;
 	cout << "You can move with direction keys." << endl;
 	cout << "Press Tab to see information." << endl;
+}
+
+void Game::play_sound(char sound)
+{
+	sounds[sound].play();
+}
+
+void Game::stop_sound(char sound)
+{
+	sounds[sound].stop();
 }
 
 void Game::draw_game()

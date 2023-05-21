@@ -115,9 +115,6 @@ void send_attack_packet()
 	attack_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	send((char*)&attack_packet);
 	game->attack_flag = false;
-	
-	game->players[game->my_id].sprite_iter = 0;
-	game->players[game->my_id].attack_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 }
 
 void send_chat_packet()
@@ -143,31 +140,30 @@ void process_packet(char* packet)
 	{
 		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
+		
 		game->players_mtx.lock();
 		if(game->players[client_id].position.x < recv_packet->position.x){
 			game->players[client_id].direction = DIR_RIGHT;
-			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.x > recv_packet->position.x){
 			game->players[client_id].direction = DIR_LEFT;
-			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.y > recv_packet->position.y){
 			game->players[client_id].direction = DIR_UP;
-			game->players[client_id].state = ST_MOVE;
 		}
 		else if (game->players[client_id].position.y < recv_packet->position.y) {
 			game->players[client_id].direction = DIR_DOWN;
-			game->players[client_id].state = ST_MOVE;
 		}
-
-		game->players[client_id].position = recv_packet->position;
+		
+		game->players[client_id].state = ST_MOVE;
 		game->players[client_id].id = client_id;
+		game->players[client_id].position = recv_packet->position;
 		game->players[client_id].moved_time = recv_packet->time;
 		game->players_mtx.unlock();
 
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
+
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 	}
 	break;
@@ -175,6 +171,7 @@ void process_packet(char* packet)
 	{
 		SC_DIRECTION_PACKET* recv_packet = reinterpret_cast<SC_DIRECTION_PACKET*>(packet);
 		int client_id = recv_packet->client_id;
+		
 		game->players_mtx.lock();
 		game->players[client_id].direction = recv_packet->direction;
 		game->players_mtx.unlock();
@@ -190,6 +187,8 @@ void process_packet(char* packet)
 		game->players[client_id].attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		game->players[client_id].sprite_iter = 0;
 		game->players_mtx.unlock();
+		
+		game->play_sound(SOUND_ATTACK);
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
 	break;
@@ -224,6 +223,8 @@ void process_packet(char* packet)
 		game->players[game->my_id].max_hp = recv_packet->max_hp;
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
+
+		game->play_sound(SOUND_YELL);
 		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
 	break;
@@ -251,8 +252,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].exp = recv_packet->exp;
 		game->players_mtx.unlock();
 		
-		cout << (char*)game->players[game->my_id].name << endl;
-		//cout << "my id: " << game->my_id << endl;
+		cout << "My Name: " << (char*)game->players[game->my_id].name << " My ID: " << game->my_id << endl;
 		
 		game->initialize_ingame();
 	}

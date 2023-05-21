@@ -6,7 +6,11 @@ enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_ATTACK, ST_HIT };
 class Player
 {
 public:
+	/*TI prev_position{ -500, -500 };
+	TI curr_position{ -500, -500 };
+	TI arr_position{ -500, -500 };*/
 	TI position{ -500, -500 };
+
 	Direction direction = DIR_DOWN;
 	State state = ST_IDLE;
 	unsigned char sprite_iter{ (unsigned char)(rand() % 255) };
