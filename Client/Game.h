@@ -46,6 +46,7 @@ public:
 	bool chat_flag = false;
 	
 private:
+	TI get_relative_location(TI);
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
@@ -53,13 +54,14 @@ private:
 	void timer();
 	
 	void draw_main();
-	void main_handle_events();
 	void draw_game();
+	void draw_stat();
 	void draw_information_mode();
 	void draw_chat_mode();
-	void chat_mode_handle_events();
+	
+	void main_handle_events();
 	void game_handle_events();
-	TI get_relative_location(TI);
+	void chat_mode_handle_events();
 	
 	sf::RenderWindow* sfml_window;
 	sf::Font sfml_font;

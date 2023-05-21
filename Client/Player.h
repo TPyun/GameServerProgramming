@@ -15,6 +15,11 @@ public:
 	int id = -1;
 	char name[30]{};
 	
+	int hp{};
+	int max_hp{};
+	int exp{};
+	int level{};
+	
 	unsigned int moved_time{};
 	unsigned int attack_time{};
 	unsigned int chat_time{};

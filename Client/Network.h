@@ -169,8 +169,8 @@ void process_packet(char* packet)
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
-		break;
 	}
+	break;
 	case P_SC_DIRECTION:
 	{
 		SC_DIRECTION_PACKET* recv_packet = reinterpret_cast<SC_DIRECTION_PACKET*>(packet);
@@ -179,8 +179,8 @@ void process_packet(char* packet)
 		game->players[client_id].direction = recv_packet->direction;
 		game->players_mtx.unlock();
 		//cout << "client_id: " << client_id << " direction: " << recv_packet->direction << endl;
-		break;
 	}
+	break;
 	case P_SC_ATTACK:
 	{
 		SC_ATTACK_PACKET* recv_packet = reinterpret_cast<SC_ATTACK_PACKET*>(packet);
@@ -191,8 +191,8 @@ void process_packet(char* packet)
 		game->players[client_id].sprite_iter = 0;
 		game->players_mtx.unlock();
 		//cout << recv_packet->client_id << " attack" << endl;
-		break;
 	}
+	break;
 	case P_SC_IN:
 	{
 		SC_IN_PACKET* recv_packet = reinterpret_cast<SC_IN_PACKET*>(packet);
@@ -204,8 +204,8 @@ void process_packet(char* packet)
 		memcpy(game->players[client_id].name, recv_packet->name, 30);
 		game->players_mtx.unlock();
 		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
-		break;
 	}
+	break;
 	case P_SC_OUT:
 	{
 		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
@@ -215,8 +215,18 @@ void process_packet(char* packet)
 		int ret = game->players.erase(client_id);
 		game->players_mtx.unlock();
 		//cout << "client_id: " << client_id << " out" << endl;
-		break;
 	}
+	break;
+	case P_SC_STAT_CHANGE:
+	{
+		SC_STAT_CHANGE_PACKET* recv_packet = reinterpret_cast<SC_STAT_CHANGE_PACKET*>(packet);
+		game->players[game->my_id].hp = recv_packet->hp;
+		game->players[game->my_id].max_hp = recv_packet->max_hp;
+		game->players[game->my_id].level = recv_packet->level;
+		game->players[game->my_id].exp = recv_packet->exp;
+		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
+	}
+	break;
 	case P_SC_CHAT:
 	{
 		SC_CHAT_PACKET* recv_packet = reinterpret_cast<SC_CHAT_PACKET*>(packet);
@@ -224,8 +234,8 @@ void process_packet(char* packet)
 		game->players[client_id].chat = recv_packet->message;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
-		break;
 	}
+	break;
 	case P_SC_LOGIN_INFO:
 	{
 		SC_LOGIN_INFO_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
@@ -235,14 +245,18 @@ void process_packet(char* packet)
 		game->players[game->my_id].position.y = recv_packet->position.y;
 		game->players[game->my_id].id = game->my_id;
 		memcpy(game->players[game->my_id].name, recv_packet->name, sizeof(recv_packet->name));
+		game->players[game->my_id].hp = recv_packet->hp;
+		game->players[game->my_id].max_hp = recv_packet->max_hp;
+		game->players[game->my_id].level = recv_packet->level;
+		game->players[game->my_id].exp = recv_packet->exp;
 		game->players_mtx.unlock();
 		
 		cout << (char*)game->players[game->my_id].name << endl;
 		//cout << "my id: " << game->my_id << endl;
 		
 		game->initialize_ingame();
-		break;
 	}
+	break;
 	default: cout << "Unknown Packet Type" << endl; break;
 	}
 }
@@ -304,7 +318,7 @@ DWORD __stdcall process(LPVOID arg)
 		game->players_mtx.lock();
 		game->players.clear();
 		game->players_mtx.unlock();
-		game->scene = 0;
+		
 		game->initialize_main();
 		closesocket(server_socket);
 		WSACleanup();

@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 2000;
+const static int MAX_TEST = 90000;
 
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;

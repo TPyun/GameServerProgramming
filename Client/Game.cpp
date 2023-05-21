@@ -88,7 +88,7 @@ void Game::timer()
 		if (current_time - player.second.sprite_time > 100) {
 			player.second.sprite_iter++;
 			player.second.sprite_time = current_time;
-			cout << "Sprite iter: " << (int)player.second.sprite_iter << endl;
+			//cout << "Sprite iter: " << (int)player.second.sprite_iter << endl;
 		}
 		
 		if (player.second.chat_time != 0) {
@@ -217,13 +217,13 @@ void Game::initialize_main()
 	input_height = 130;
 	text_input = "";
 	input_warning = false;
+	scene = 0;
 }
 
 void Game::initialize_ingame()
 {
 	information_mode = false;
 	chat_mode = false;
-
 	scene = 1;
 	cout << "You can move with direction keys." << endl;
 	cout << "Press Tab to see information." << endl;
@@ -231,9 +231,9 @@ void Game::initialize_ingame()
 
 void Game::draw_game()
 {
-	//체스 판
 	TI player_position = players[my_id].position;
 	
+	//체스 판
 	TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
 	TI chess_board_pixel_position;
 	for (int i = 0; i < CLIENT_RANGE; i++) {
@@ -245,8 +245,9 @@ void Game::draw_game()
 			if ((player_position.x + i + player_position.y + j) % 2 == 0)
 				color = sf::Color(170, 170, 170);
 			
-			if (player_position.x + i < VIEW_RANGE || player_position.x + i > MAP_SIZE + VIEW_RANGE || player_position.y + j < VIEW_RANGE || player_position.y + j > MAP_SIZE + VIEW_RANGE)
+			if (player_position.x + i < CLIENT_RANGE / 2 || player_position.x + i > MAP_SIZE + CLIENT_RANGE / 2 || player_position.y + j < CLIENT_RANGE / 2 || player_position.y + j > MAP_SIZE + CLIENT_RANGE / 2) {
 				color = sf::Color(50, 50, 50);
+			}
 
 			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
 		}
@@ -273,10 +274,32 @@ void Game::draw_game()
 		}
 	}
 	
+	draw_stat();
 	if(information_mode)
 		draw_information_mode();
 	if (chat_mode) 
 		draw_chat_mode();
+}
+
+void Game::draw_stat()
+{
+	//draw hp, level, exp gauge
+	draw_sfml_text_s({ 10, 10 }, "HP", sf::Color::White, 15);
+	draw_sfml_text_s({ 10, 25 }, "EXP", sf::Color::White, 15);
+	draw_sfml_text_s({ 10, 40 }, "Level: " + to_string(players[my_id].level), sf::Color::White, 15);
+
+	int hp = players[my_id].hp;
+	int max_hp = players[my_id].max_hp;
+	int level = players[my_id].level;
+	int exp = players[my_id].exp;
+	
+	int hp_gauge = (int)((float)hp * 200.f / max_hp);
+	int exp_gauge = ((float)exp * 2 / level);
+	
+	draw_sfml_rect({ 50, 10 }, { hp_gauge, 15 }, sf::Color::Transparent, sf::Color::Red);
+	draw_sfml_rect({ 50, 25 }, { (int)exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green);
+	
+	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent);
 }
 
 void Game::draw_sprite(int id, sf::Color color, char size)

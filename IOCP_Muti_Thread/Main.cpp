@@ -20,6 +20,10 @@ extern "C"
 using namespace std;
 using namespace chrono;
 
+//int*** sector_list;
+unordered_set<int>** sector_list;
+mutex** sector_mutex;
+
 HANDLE h_iocp;
 enum EVENT_TYPE { EV_MOVE, EV_ATTACK };
 class EVENT {
@@ -129,7 +133,6 @@ public:
 			}
 		}
 	}
-	
 	void send_login_info_packet();
 	void send_move_packet(int);
 	void send_direction_packet(int);
@@ -137,34 +140,51 @@ public:
 	void send_in_packet(int);
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
+	void send_stat_packet();
 
 	void insert_view_list(int);
 	void erase_view_list(int);
 };
 array<SESSION, MAX_USER + MAX_NPC> clients;
 
+bool is_npc(int id) 
+{
+	if (id >= MAX_USER) return true;
+	return false;
+}
+
 void SESSION::send_login_info_packet()
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 	
 	player_count.fetch_add(1);
 	//cout << "Player Count : " << player_count << endl;
 	
-	//player.position = randomly_spawn_player();
-	player.position.x = rand() % 10;
-	player.position.y = rand() % 10;
+	player.position = randomly_spawn_player();
+	//player.position.x = rand() % 10;
+	//player.position.y = rand() % 10;
 	player.direction = DIR_DOWN;
+	
+	player.hp = 100;
+	player.max_hp = 100;
+	player.level = 1;
+	player.exp = 0;
+	
 	SC_LOGIN_INFO_PACKET packet;
 	packet.client_id = client_id;
 	memcpy(&packet.name, &player.name, sizeof(packet.name));
 	packet.position = player.position;
+	packet.hp = player.hp;
+	packet.max_hp = player.max_hp;
+	packet.level = player.level;
+	packet.exp = player.exp;
 	do_send(&packet);
 }
 
 void SESSION::send_move_packet(int client_id)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 	
 	SC_MOVE_PACKET packet;
@@ -176,7 +196,7 @@ void SESSION::send_move_packet(int client_id)
 
 void SESSION::send_direction_packet(int watcher_id)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 	
 	SC_DIRECTION_PACKET packet;
@@ -187,7 +207,7 @@ void SESSION::send_direction_packet(int watcher_id)
 
 void SESSION::send_attack_packet(int attacker_id)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 	
 	SC_ATTACK_PACKET packet;
@@ -197,7 +217,7 @@ void SESSION::send_attack_packet(int attacker_id)
 
 void SESSION::send_in_packet(int entered_client_id)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 
 	SC_IN_PACKET packet;
@@ -209,7 +229,7 @@ void SESSION::send_in_packet(int entered_client_id)
 
 void SESSION::send_out_packet(int client_id)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 	
 	SC_OUT_PACKET packet;
@@ -219,12 +239,25 @@ void SESSION::send_out_packet(int client_id)
 
 void SESSION::send_chat_packet(int id, const char* message)
 {
-	if (this->client_id >= MAX_USER)
+	if (is_npc(this->client_id))
 		return;
 
 	SC_CHAT_PACKET packet;
 	packet.client_id = id;
 	strcpy_s(packet.message, message);
+	do_send(&packet);
+}
+
+void SESSION::send_stat_packet()
+{
+	if (is_npc(this->client_id))
+		return;
+
+	SC_STAT_CHANGE_PACKET packet;
+	packet.hp = player.hp;
+	packet.max_hp = player.max_hp;
+	packet.level = player.level;
+	packet.exp = player.exp;
 	do_send(&packet);
 }
 
@@ -242,6 +275,69 @@ void SESSION::erase_view_list(int new_client_id)
 	view_list_mtx.unlock();
 }
 
+void initialize_sector_list()
+{
+	int sector_num;
+	if (MAP_SIZE % SECTOR_SIZE)
+		sector_num = MAP_SIZE / SECTOR_SIZE + 1;
+	else
+		sector_num = MAP_SIZE / SECTOR_SIZE;
+
+	sector_list = new unordered_set<int>*[sector_num];
+	for (int i = 0; i < sector_num; ++i) {
+		sector_list[i] = new unordered_set<int>[sector_num];
+	}
+	for (int i = 0; i < sector_num; ++i) {
+		for (int j = 0; j < sector_num; ++j) {
+		}
+	}
+	
+	sector_mutex = new mutex * [sector_num];
+	for (int i = 0; i < sector_num; ++i) {
+		sector_mutex[i] = new mutex[sector_num];
+	}
+}
+
+void remove_from_sector_list(int id)
+{
+	int x = clients[id].player.position.x / SECTOR_SIZE;
+	int y = clients[id].player.position.y / SECTOR_SIZE;
+	sector_mutex[x][y].lock();
+	sector_list[x][y].erase(id);
+	sector_mutex[x][y].unlock();
+}
+
+void add_to_sector_list(int id)
+{
+	int x = clients[id].player.position.x / SECTOR_SIZE;
+	int y = clients[id].player.position.y / SECTOR_SIZE;
+	sector_mutex[x][y].lock();
+	sector_list[x][y].insert(id);
+	sector_mutex[x][y].unlock();
+}
+
+void get_from_sector_list(int id, unordered_set<int>& sector)
+{
+	int x = clients[id].player.position.x / SECTOR_SIZE;
+	int y = clients[id].player.position.y / SECTOR_SIZE;
+	
+	// get list from around 9 sectors
+	for (int i = -1; i <= 1; ++i) {
+		if (x + i < 0 || x + i >= MAP_SIZE / SECTOR_SIZE)
+			continue;
+		for (int j = -1; j <= 1; ++j) {
+			if (y + j < 0 || y + j >= MAP_SIZE / SECTOR_SIZE)
+				continue;
+			
+			sector_mutex[x + i][y + j].lock();
+			sector.insert(sector_list[x + i][y + j].begin(), sector_list[x + i][y + j].end());
+			sector_mutex[x + i][y + j].unlock();
+			/*if (x + i == 0 && y + j == 0)
+				cout << "[" << x + i << ", " << y + j << "] " << sector_list[x + i][y + j].size() << endl;*/
+		}
+	}
+}
+
 void disconnect(int client_id)
 {
 	{
@@ -256,7 +352,16 @@ void disconnect(int client_id)
 
 	for (auto& client_in_view : view_list) {
 		clients[client_in_view].send_out_packet(client_id);
+		clients[client_in_view].erase_view_list(client_id);
 	}
+
+	remove_from_sector_list(client_id);
+
+	if (is_npc(client_id)) {
+		clients[client_id].is_active_npc = false;
+		return;
+	}
+
 	closesocket(clients[client_id].socket);
 
 	player_count.fetch_sub(1);
@@ -279,6 +384,15 @@ bool in_eyesight(int p1, int p2)
 	if (abs(clients[p1].player.position.x - clients[p2].player.position.x) > VIEW_RANGE) return false;
 	if (abs(clients[p1].player.position.y - clients[p2].player.position.y) > VIEW_RANGE) return false;
 	return true;
+}
+
+bool attack_position(int attacker, int defender)
+{
+	if (clients[attacker].player.position.x == clients[defender].player.position.x && clients[attacker].player.position.y == clients[defender].player.position.y)
+		return true;
+	if (clients[attacker].player.position.x + clients[attacker].player.ti_direction.x == clients[defender].player.position.x && clients[attacker].player.position.y + clients[attacker].player.ti_direction.y == clients[defender].player.position.y)
+		return true;
+	return false;
 }
 
 int get_new_client_id()
@@ -315,34 +429,31 @@ void process_packet(int client_id, char* packet)
 	{
 		SESSION* moved_client = &clients[client_id];
 		CS_MOVE_PACKET* recv_packet = reinterpret_cast<CS_MOVE_PACKET*>(packet);
+
+		remove_from_sector_list(client_id);
+		
 		memcpy(&moved_client->player.key_input, &recv_packet->ks, sizeof(recv_packet->ks));
 		moved_client->player.key_check();
 		moved_client->prev_time = recv_packet->time;
-
 		moved_client->send_move_packet(client_id);								//본인 움직임 보냄
+		
+		add_to_sector_list(client_id);
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(client_id, list_of_sector);						//본인이 보는 섹터에 있는 클라이언트들을 불러옴
 
 		unordered_set<int> new_view_list;										//새로 업데이트 할 뷰 리스트
 		moved_client->view_list_mtx.lock();
 		unordered_set<int> old_view_list = moved_client->view_list;				//이전 뷰 리스트 복사
 		moved_client->view_list_mtx.unlock();
 
-		int num_clients = 1;
-		for (int user_id = 0; user_id < MAX_USER; ++user_id) {					//유저 검색
+		for (auto& client_in_sector : list_of_sector) {
 			{
 				lock_guard<mutex> m(clients[client_id].state_mtx);
-				if (clients[user_id].state != ST_INGAME) continue;
+				if (clients[client_in_sector].state != ST_INGAME) continue;
 			}
-			if (clients[user_id].client_id == client_id) continue;
-			if (in_eyesight(client_id, user_id)) {						//현재 시야 안에 있는 클라이언트
-				new_view_list.insert(user_id);								//new list 채우기
-			}
-			if (num_clients == player_count)									//현재 있는 유저만큼 검색 했으면 끝내자 (성능 차이가 없다)
-				break;
-			++num_clients;
-		}
-		for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {		//NPC검색
-			if (in_eyesight(client_id, npc_id)) {							//현재 시야 안에 있는 NPC
-				new_view_list.insert(npc_id);									//new list 채우기
+			if (clients[client_in_sector].client_id == client_id) continue;
+			if (in_eyesight(client_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(client_in_sector);								//new list 채우기
 			}
 		}
 		
@@ -355,7 +466,7 @@ void process_packet(int client_id, char* packet)
 				clients[new_one].send_direction_packet(client_id);
 				moved_client->send_direction_packet(new_one);
 				
-				if (new_one >= MAX_USER) {											//NPC라면 깨우기
+				if (is_npc(new_one)) {									//NPC라면 깨우기
 					wake_up_npc(new_one);
 				}
 			}
@@ -386,15 +497,20 @@ void process_packet(int client_id, char* packet)
 		moved_client->view_list_mtx.lock();
 		moved_client->view_list = new_view_list;										//뷰 리스트 갱신
 		moved_client->view_list_mtx.unlock();
-		
-		break;
 	}
+	break;
 	case P_CS_DIRECTION:
 	{
 		SESSION* watcher = &clients[client_id];
 		CS_DIRECTION_PACKET* recv_packet = reinterpret_cast<CS_DIRECTION_PACKET*>(packet);
 
 		watcher->player.direction = recv_packet->direction;
+		switch (watcher->player.direction) {
+		case DIR_UP: watcher->player.ti_direction = { 0, -1 }; break;
+		case DIR_DOWN: watcher->player.ti_direction = { 0, 1 }; break;
+		case DIR_LEFT: watcher->player.ti_direction = { -1, 0 }; break;
+		case DIR_RIGHT: watcher->player.ti_direction = { 1, 0 }; break;
+		}
 		
 		watcher->view_list_mtx.lock();
 		unordered_set<int> watcher_view_list = watcher->view_list;
@@ -403,25 +519,47 @@ void process_packet(int client_id, char* packet)
 		for (auto& watched_id : watcher_view_list) {
 			clients[watched_id].send_direction_packet(client_id);
 		}
-
-		break;
 	}
+	break;
 	case P_CS_ATTACK:
 	{
 		SESSION* attacker = &clients[client_id];
 		CS_ATTACK_PACKET* recv_packet = reinterpret_cast<CS_ATTACK_PACKET*>(packet);
-		
 		//cout << client_id << " attack" << endl;
-		
-		attacker->view_list_mtx.lock();
-		unordered_set<int> attacker_view_list = attacker->view_list;
-		attacker->view_list_mtx.unlock();
 
-		for (auto& client : attacker_view_list) {
-			clients[client].send_attack_packet(client_id);
+		unordered_set<int> attacker_view_list;
+
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(client_id, list_of_sector);
+		for (auto& client_in_sector : list_of_sector) {
+			{
+				lock_guard<mutex> m(clients[client_id].state_mtx);
+				if (clients[client_in_sector].state != ST_INGAME) continue;
+			}
+			if (clients[client_in_sector].client_id == client_id) continue;
+			if (in_eyesight(client_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
+				attacker_view_list.insert(client_in_sector);								//new list 채우기
+			}
 		}
-		break;
+
+		for (auto& defender : attacker_view_list) {
+			clients[defender].send_attack_packet(client_id);	//공격 모션
+
+			if (attack_position(client_id, defender)) {
+				clients[defender].player.decrease_hp(50);
+
+				if (clients[defender].player.hp <= 0) {
+					int defender_level = clients[defender].player.level;
+					attacker->player.increase_exp(defender_level * 50);
+					attacker->send_stat_packet();
+
+					disconnect(defender);
+				}
+				clients[defender].send_stat_packet();
+			}
+		}
 	}
+	break;
 	case P_CS_LOGIN:
 	{
 		SESSION* new_client = &clients[client_id];
@@ -434,7 +572,6 @@ void process_packet(int client_id, char* packet)
 			lock_guard<mutex> m{ clients[client_id].state_mtx };
 			clients[client_id].state = ST_INGAME;
 		}
-		
 
 		for (auto& old_client : clients) {
 			{
@@ -444,6 +581,8 @@ void process_packet(int client_id, char* packet)
 			if (client_id == old_client.client_id) continue;
 
 			if (in_eyesight(client_id, old_client.client_id)) {
+				add_to_sector_list(client_id);
+				
 				old_client.insert_view_list(client_id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
 				new_client->insert_view_list(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
 				
@@ -453,13 +592,13 @@ void process_packet(int client_id, char* packet)
 				new_client->send_direction_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
 				old_client.send_direction_packet(client_id);						//시야 안에 클라한테 새로온 애 방향 전송.
 				
-				if (old_client.client_id >= MAX_USER) {							//NPC라면 깨우기
+				if (is_npc(old_client.client_id)) {							//NPC라면 깨우기
 					wake_up_npc(old_client.client_id);
 				}
 			}
 		}
-		break;
 	}
+	break;
 	case P_CS_CHAT:
 	{
 		SESSION* mumbling_client = &clients[client_id];
@@ -473,8 +612,8 @@ void process_packet(int client_id, char* packet)
 			clients[hearing_client].send_chat_packet(client_id, recv_packet->message);
 		}
 		cout << "client " << client_id << " : " << recv_packet->message << endl;
-		break;
 	}
+	break;
 	default: cout << "Unknown Packet Type" << endl; break;
 	}
 }
@@ -617,6 +756,8 @@ void spawn_npc()
 		
 		sprintf_s(clients[npc_id].player.name, "NPC %d", npc_id);
 		
+		add_to_sector_list(npc_id);
+		
 		//auto L = clients[npc_id].lua = luaL_newstate();
 		//luaL_openlibs(L);
 		//luaL_loadfile(L, "npc.lua");
@@ -644,6 +785,9 @@ void random_move_npc(int npc_id)
 {
 	SESSION* moved_npc = &clients[npc_id];
 
+	if (!moved_npc->is_active_npc)
+		return;
+
 	unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
 	moved_npc->view_list_mtx.lock();
 	unordered_set<int> old_view_list = moved_npc->view_list;			//이전 뷰 리스트 복사
@@ -654,6 +798,8 @@ void random_move_npc(int npc_id)
 		moved_npc->is_active_npc = false;
 		return;
 	}
+
+	remove_from_sector_list(npc_id);
 
 	random_device rd;
 	default_random_engine dre(rd());
@@ -669,19 +815,22 @@ void random_move_npc(int npc_id)
 	moved_npc->player.key_check();
 	moved_npc->prev_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	
-	int num_clients = 1;
-	for (int user_id = 0; user_id < MAX_USER; ++user_id) {				//유저만 검색
+	add_to_sector_list(npc_id);
+	unordered_set<int> list_of_sector;
+	get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
+
+	for (auto& client_in_sector : list_of_sector) {
+		if (is_npc(client_in_sector)) continue;
 		{
-			lock_guard<mutex> m(clients[user_id].state_mtx);
-			if (clients[user_id].state != ST_INGAME) continue;
+			lock_guard<mutex> m(clients[npc_id].state_mtx);
+			if (clients[client_in_sector].state != ST_INGAME) continue;
 		}
-		if (in_eyesight(npc_id, clients[user_id].client_id)) {	//현재 시야 안에 있는 클라이언트
-			new_view_list.insert(clients[user_id].client_id);		//new list 채우기
+		if (clients[client_in_sector].client_id == npc_id) continue;
+		if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
+			new_view_list.insert(client_in_sector);								//new list 채우기
 		}
-		if (num_clients == player_count)								//현재 있는 유저만큼 검색 했으면 끝내자 (성능 차이가 없다)
-			break;
-		++num_clients;
 	}
+	
 	for (auto& new_one : new_view_list) {
 		if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
 			clients[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
@@ -781,6 +930,7 @@ int main()
 	global_accept_over.completion_type = OP_ACCEPT;
 	AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 	
+	initialize_sector_list();
 	spawn_npc();
 	thread timer{ do_timer };
 	
