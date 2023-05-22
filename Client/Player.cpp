@@ -5,10 +5,6 @@ Player::Player()
 {
 }
 
-Player::Player(TI pos) : position(pos)
-{
-}
-
 Player::~Player()
 {
 }

@@ -6,10 +6,8 @@ enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_ATTACK, ST_HIT };
 class Player
 {
 public:
-	/*TI prev_position{ -500, -500 };
-	TI curr_position{ -500, -500 };
-	TI arr_position{ -500, -500 };*/
-	TI position{ -500, -500 };
+	TF curr_position{ -500, -500 };
+	TI arr_position{ -500, -500 };
 
 	Direction direction = DIR_DOWN;
 	State state = ST_IDLE;
@@ -30,7 +28,6 @@ public:
 	std::string chat;
 
 	Player();
-	Player(TI);
 	~Player();
 	
 private:

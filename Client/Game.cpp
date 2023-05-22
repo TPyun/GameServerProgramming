@@ -41,7 +41,7 @@ Game::Game()
 	sounds[SOUND_MOVE].setLoop(true);
 	sounds[SOUND_TURN_ON].play();
 	
-	sfml_window->setFramerateLimit(120);
+	sfml_window->setFramerateLimit(set_fps);
 	cout << "Press Tab to move another input box" << endl;
 	cout << "Press Enter to connect" << endl;
 }
@@ -94,6 +94,11 @@ void Game::update()
 	}
 }
 
+template<typename T>
+T lerp(const T& a, const T& b, float t) {
+	return a + (b - a) * t;
+}
+
 void Game::timer()
 {
 	unsigned int current_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
@@ -111,8 +116,16 @@ void Game::timer()
 			}
 		}
 
-		if (player.second.moved_time + 500 < current_time) {
+		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.05f && abs(player.second.arr_position.y - player.second.curr_position.y) < 0.05f) {
+			player.second.curr_position.x = player.second.arr_position.x;
+			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
+		}
+		//lerp position in same velocity with time
+		else {
+			player.second.curr_position.x = lerp(player.second.curr_position.x, (float)player.second.arr_position.x, 1.f / (float)real_fps);
+			player.second.curr_position.y = lerp(player.second.curr_position.y, (float)player.second.arr_position.y, 1.f / (float)real_fps);
+			player.second.state = ST_MOVE;
 		}
 	
 		if (player.second.attack_time + 300 > current_time) {
@@ -222,7 +235,13 @@ void Game::main_handle_events()
 
 TI Game::get_relative_location(TI position)
 {
-	TI relative_position = { (WIDTH / 2) + (position.x - players[my_id].position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].position.y) * BLOCK_SIZE };
+	TI relative_position = { (WIDTH / 2) + (position.x - players[my_id].curr_position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].curr_position.y) * BLOCK_SIZE };
+	return relative_position;
+}
+
+TI Game::get_relative_location(TF position)
+{
+	TI relative_position = { (WIDTH / 2) + (position.x - players[my_id].curr_position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].curr_position.y) * BLOCK_SIZE };
 	return relative_position;
 }
 
@@ -261,7 +280,7 @@ void Game::stop_sound(char sound)
 
 void Game::draw_game()
 {
-	TI player_position = players[my_id].position;
+	TF player_position = players[my_id].curr_position;
 	
 	//Ã¼½º ÆÇ
 	TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
@@ -272,12 +291,10 @@ void Game::draw_game()
 			chess_board_pixel_position.y = j * BLOCK_SIZE;
 			sf::Color color(100, 50, 0);
 			
-			if ((player_position.x + i + player_position.y + j) % 2 == 0)
-				color = sf::Color(170, 170, 170);
-			
-			if (player_position.x + i < CLIENT_RANGE / 2 || player_position.x + i > MAP_SIZE + CLIENT_RANGE / 2 || player_position.y + j < CLIENT_RANGE / 2 || player_position.y + j > MAP_SIZE + CLIENT_RANGE / 2) {
-				color = sf::Color(50, 50, 50);
-			}
+			if (i == CLIENT_RANGE / 2 && j == CLIENT_RANGE / 2)
+				color = sf::Color(255, 255, 255);
+			else if (i == CLIENT_RANGE / 2 || j == CLIENT_RANGE / 2)
+				color = sf::Color(200, 100, 0);
 
 			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
 		}
@@ -289,13 +306,13 @@ void Game::draw_game()
 	qsort(sorted_players.data(), sorted_players.size(), sizeof(std::pair<int, Player>), [](const void* a, const void* b) {
 		const auto& player1 = *reinterpret_cast<const std::pair<int, Player>*>(a);
 		const auto& player2 = *reinterpret_cast<const std::pair<int, Player>*>(b);
-		return player1.second.position.y - player2.second.position.y;
+		return player1.second.arr_position.y - player2.second.arr_position.y;
 	});
 
 	// Draw the players in sorted order
 	for (const auto& player : sorted_players) {
 		draw_sprite(player.first, sf::Color::White, 3); // Walk
-		TI related_pos = get_relative_location(player.second.position);
+		TI related_pos = get_relative_location(player.second.curr_position);
 		string name(player.second.name);
 		draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80}, name, sf::Color::White, 14);
 
@@ -340,7 +357,7 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 	if (id == my_id)
 		position = TI{ WIDTH / 2, HEIGHT / 2 };
 	else
-		position = get_relative_location(this_player->position);
+		position = get_relative_location(this_player->curr_position);
 	TUC sprite_size;
 	char sprite_length = 4;
 	Direction direction = this_player->direction;
@@ -371,12 +388,12 @@ void Game::draw_information_mode()
 	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, 730 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
 	int information_height = 0;
 	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, "Ping: " + std::to_string(ping), sf::Color::Black, text_size);
-	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].position.x) + ", " + std::to_string(players[my_id].position.y), sf::Color::Black, text_size);
+	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].curr_position.x) + ", " + std::to_string(players[my_id].curr_position.y), sf::Color::Black, text_size);
 
 	for (auto& player : players) {
 		if (player.first == my_id)
 			continue;
-		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.position.x) + ", " + std::to_string(player.second.position.y), sf::Color::Red, text_size);
+		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.curr_position.x) + ", " + std::to_string(player.second.curr_position.y), sf::Color::Red, text_size);
 	}
 
 	//draw map
@@ -389,12 +406,12 @@ void Game::draw_information_mode()
 	draw_sfml_rect(minimap_start_point, minimap_size, sf::Color::Black, sf::Color::Black);	//mini map
 	
 	for (auto& player : players) {
-		TI player_pos_minimap{ player.second.position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x, player.second.position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y };
+		TI player_pos_minimap{ player.second.curr_position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x, player.second.curr_position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y };
 		if (player.first == my_id)
 			continue;
 		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red);	//other position on mini map
 	}
-	TI player_pos_minimap{ players[my_id].position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x,  players[my_id].position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y};
+	TI player_pos_minimap{ players[my_id].curr_position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x,  players[my_id].curr_position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y};
 	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White);	//my position on mini map
 }
 

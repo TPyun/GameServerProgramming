@@ -427,7 +427,7 @@ void wake_up_npc(int npc_id)
 	if (false == atomic_compare_exchange_strong(&objects[npc_id].is_active_npc, &old_state, true))
 		return;
 	//cout << npc_id << " 일어나라 NPC야 " << objects[npc_id].is_active_npc << endl;
-	reserve_timer(npc_id, EV_MOVE, 0);
+	reserve_timer(npc_id, EV_MOVE, 500);
 }
 
 void process_packet(int client_id, char* packet)

@@ -142,22 +142,22 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		
 		game->players_mtx.lock();
-		if(game->players[client_id].position.x < recv_packet->position.x){
+		if(game->players[client_id].arr_position.x < recv_packet->position.x){
 			game->players[client_id].direction = DIR_RIGHT;
 		}
-		else if (game->players[client_id].position.x > recv_packet->position.x){
+		else if (game->players[client_id].arr_position.x > recv_packet->position.x){
 			game->players[client_id].direction = DIR_LEFT;
 		}
-		else if (game->players[client_id].position.y > recv_packet->position.y){
+		else if (game->players[client_id].arr_position.y > recv_packet->position.y){
 			game->players[client_id].direction = DIR_UP;
 		}
-		else if (game->players[client_id].position.y < recv_packet->position.y) {
+		else if (game->players[client_id].arr_position.y < recv_packet->position.y) {
 			game->players[client_id].direction = DIR_DOWN;
 		}
 		
 		game->players[client_id].state = ST_MOVE;
 		game->players[client_id].id = client_id;
-		game->players[client_id].position = recv_packet->position;
+		game->players[client_id].arr_position = recv_packet->position;
 		game->players[client_id].moved_time = recv_packet->time;
 		game->players_mtx.unlock();
 
@@ -198,7 +198,10 @@ void process_packet(char* packet)
 		int client_id = recv_packet->client_id;
 		
 		game->players_mtx.lock();
-		game->players[client_id].position = recv_packet->position;
+		game->players[client_id].curr_position.x = recv_packet->position.x;
+		game->players[client_id].curr_position.y = recv_packet->position.y;
+		game->players[client_id].arr_position = recv_packet->position;
+		
 		game->players[client_id].state = ST_IDLE;
 		memcpy(game->players[client_id].name, recv_packet->name, 30);
 		game->players_mtx.unlock();
@@ -242,8 +245,10 @@ void process_packet(char* packet)
 		SC_LOGIN_INFO_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
 		game->my_id = recv_packet->client_id;
 		game->players_mtx.lock();
-		game->players[game->my_id].position.x = recv_packet->position.x;
-		game->players[game->my_id].position.y = recv_packet->position.y;
+		game->players[game->my_id].curr_position.x = recv_packet->position.x;
+		game->players[game->my_id].curr_position.y = recv_packet->position.y;
+		game->players[game->my_id].arr_position = recv_packet->position;
+		
 		game->players[game->my_id].id = game->my_id;
 		memcpy(game->players[game->my_id].name, recv_packet->name, sizeof(recv_packet->name));
 		game->players[game->my_id].hp = recv_packet->hp;

@@ -10,8 +10,7 @@ int main()
 {
 	Game* game = new Game();
 	HANDLE h_thread = CreateThread(NULL, 0, process, game, 0, NULL);
-	
-	int frame = 0;
+	int fps = 0;
 	clock_t start = clock();
 	while (game->get_running()) {
 		
@@ -20,13 +19,14 @@ int main()
 		game->render();
 		
 		//check fps
-		/*frame++;
+		fps++;
 		clock_t end = clock();
 		if (end - start >= 1000) {
-			cout << "fps: " << frame << endl;
-			frame = 0;
+			//cout << "fps: " << game->real_fps << endl;
+			game->real_fps = fps;
+			fps = 0;
 			start = clock();
-		}*/
+		}
 	}
 	
 	return 0;
