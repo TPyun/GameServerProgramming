@@ -123,8 +123,24 @@ void Game::timer()
 		}
 		//lerp position in same velocity with time
 		else {
-			player.second.curr_position.x = lerp(player.second.curr_position.x, (float)player.second.arr_position.x, 1.f / (float)real_fps);
-			player.second.curr_position.y = lerp(player.second.curr_position.y, (float)player.second.arr_position.y, 1.f / (float)real_fps);
+			//player.second.curr_position.x = lerp(player.second.curr_position.x, (float)player.second.arr_position.x, 1.f / (float)real_fps * 3);
+			//player.second.curr_position.y = lerp(player.second.curr_position.y, (float)player.second.arr_position.y, 1.f / (float)real_fps * 3);
+			char sign_x = -1;
+			char sign_y = -1;
+			if (player.second.arr_position.x - player.second.curr_position.x == 0)
+				sign_x = 0;
+			else if (player.second.arr_position.x - player.second.curr_position.x > 0)
+				sign_x = 1;
+			if (player.second.arr_position.y - player.second.curr_position.y == 0)
+				sign_y = 0;
+			else if (player.second.arr_position.y - player.second.curr_position.y > 0)
+				sign_y = 1;
+			
+			float delay = 4.f;
+			float velocity = delay / (float)real_fps;
+			player.second.curr_position.x += (float)sign_x * velocity;
+			player.second.curr_position.y += (float)sign_y * velocity;
+			
 			player.second.state = ST_MOVE;
 		}
 	

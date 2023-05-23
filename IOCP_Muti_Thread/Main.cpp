@@ -438,7 +438,7 @@ void process_packet(int client_id, char* packet)
 		SESSION* moved_client = &objects[client_id];
 		CS_MOVE_PACKET* recv_packet = reinterpret_cast<CS_MOVE_PACKET*>(packet);
 
-		if (moved_client->prev_move_time + 500 > recv_packet->time) return;		//1초 지나야 움직일 수 있음
+		if (moved_client->prev_move_time + 250 > recv_packet->time) return;		//1초 지나야 움직일 수 있음
 
 		remove_from_sector_list(client_id);
 		
