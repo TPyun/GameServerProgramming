@@ -17,6 +17,11 @@ Game::Game()
 	
 	//draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 90 , HEIGHT / 2 - players[my_id].size.y / 2 }, "Loading Game", sf::Color::White, 30);
 	//render();
+
+	sand_texture.loadFromFile("Texture/grass1.png");
+	sand_texture.setSmooth(true);
+	sand_sprite.setTexture(sand_texture);
+	
 	
 	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png" };
 	for (int act = 0; act < 6; act++) {
@@ -116,15 +121,13 @@ void Game::timer()
 			}
 		}
 
-		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.05f && abs(player.second.arr_position.y - player.second.curr_position.y) < 0.05f) {
+		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.1f && abs(player.second.arr_position.y - player.second.curr_position.y) < 0.1f) {
 			player.second.curr_position.x = player.second.arr_position.x;
 			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
 		}
 		//lerp position in same velocity with time
 		else {
-			//player.second.curr_position.x = lerp(player.second.curr_position.x, (float)player.second.arr_position.x, 1.f / (float)real_fps * 3);
-			//player.second.curr_position.y = lerp(player.second.curr_position.y, (float)player.second.arr_position.y, 1.f / (float)real_fps * 3);
 			char sign_x = -1;
 			char sign_y = -1;
 			if (player.second.arr_position.x - player.second.curr_position.x == 0)
@@ -298,8 +301,28 @@ void Game::draw_game()
 {
 	TF player_position = players[my_id].curr_position;
 	
+	// Draw sand texture
+	float sprite_scale_x = (float)WIDTH / (float)sand_texture.getSize().x;
+	float sprite_scale_y = (float)HEIGHT / (float)sand_texture.getSize().y;
+	sand_sprite.setScale(sprite_scale_x, sprite_scale_y);
+	for (int x = -1; x <= 1; x++) {
+		for (int y = -1; y <= 1; y++) {
+			float a = (int)player_position.x / CLIENT_RANGE * CLIENT_RANGE;
+			float b = (int)player_position.y / CLIENT_RANGE * CLIENT_RANGE;
+
+			float sprite_pos_x = WIDTH * x -((player_position.x - a) * BLOCK_SIZE);
+			float sprite_pos_y = HEIGHT * y -((player_position.y - b) * BLOCK_SIZE);
+			sand_sprite.setPosition(sprite_pos_x, sprite_pos_y);
+			sfml_window->draw(sand_sprite);
+		}
+	}
+	
+	
+	//cout << sprite_pos_x << " " << sprite_pos_y << endl;
+	
+
 	//Ã¼½º ÆÇ
-	TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
+	/*TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
 	TI chess_board_pixel_position;
 	for (int i = 0; i < CLIENT_RANGE; i++) {
 		for (int j = 0; j < CLIENT_RANGE; j++) {
@@ -314,7 +337,7 @@ void Game::draw_game()
 
 			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
 		}
-	}
+	}*/
 	
 	// Sort the players by their Y position using qsort and a lambda function
 	std::vector<std::pair<int, Player>> sorted_players(players.begin(), players.end());
@@ -468,26 +491,33 @@ void Game::chat_mode_handle_events()
 
 void Game::game_handle_events()
 {
+	if (sfml_event.type == sf::Event::KeyReleased) {
+		if (sfml_event.key.code == sf::Keyboard::W) {
+			key_input.up = false;
+		}
+		if (sfml_event.key.code == sf::Keyboard::S) {
+			key_input.down = false;
+		}
+		if (sfml_event.key.code == sf::Keyboard::A) {
+			key_input.left = false;
+		}
+		if (sfml_event.key.code == sf::Keyboard::D) {
+			key_input.right = false;
+		}
+	}
+	
 	if (sfml_event.type == sf::Event::KeyPressed) {
-		if (!move_flag) {
-			bool move = false;
-			if (sfml_event.key.code == sf::Keyboard::W) {
-				key_input.up = true;
-				move = true;
-			}
-			if (sfml_event.key.code == sf::Keyboard::S) {
-				key_input.down = true;
-				move = true;
-			}
-			if (sfml_event.key.code == sf::Keyboard::A) {
-				key_input.left = true;
-				move = true;
-			}
-			if (sfml_event.key.code == sf::Keyboard::D) {
-				key_input.right = true;
-				move = true;
-			}
-			move_flag = move;
+		if (sfml_event.key.code == sf::Keyboard::W) {
+			key_input.up = true;
+		}
+		if (sfml_event.key.code == sf::Keyboard::S) {
+			key_input.down = true;
+		}
+		if (sfml_event.key.code == sf::Keyboard::A) {
+			key_input.left = true;
+		}
+		if (sfml_event.key.code == sf::Keyboard::D) {
+			key_input.right = true;
 		}
 
 		if (!direction_flag) {
@@ -540,6 +570,11 @@ void Game::game_handle_events()
 			}
 		}
 	}
+
+	if (key_input.up || key_input.down || key_input.left || key_input.right)
+		move_flag = true;
+	else
+		move_flag = false;
 }
 
 void Game::draw_sfml_text(TI position, char str[], sf::Color color, int size)

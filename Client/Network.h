@@ -97,8 +97,7 @@ void send_move_packet()
 	move_packet.ks = game->key_input;
 	move_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	send((char*)&move_packet);
-	ZeroMemory(&game->key_input, sizeof(KS));
-	game->move_flag = false;
+	//cout << game->key_input.up << " " << game->key_input.down << " " << game->key_input.left << " " << game->key_input.right << endl;
 }
 
 void send_direction_packet()

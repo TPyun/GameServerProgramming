@@ -483,18 +483,17 @@ void process_packet(int client_id, char* packet)
 			else
 				objects[new_one].send_move_packet(client_id);						//기존에 있었으면 무브
 
-			//if (new_one >= MAX_USER) {												//NPC라면 깨우기
-			//	if (objects[new_one].player.position.x != moved_client->player.position.x || objects[new_one].player.position.y != moved_client->player.position.y)
-			//		continue;
-			//	//objects[new_one].lua_mtx.lock();
-			//	cout << new_one << " == " << walker_id << endl;
-			//	auto L = objects[new_one].lua;
-			//	lua_getglobal(L, "event_player_move");
-			//	lua_pushnumber(L, walker_id);
-			//	lua_pcall(L, 1, 0, 0);
-			//	lua_pop(L, 1);
-			//	//objects[new_one].lua_mtx.unlock();
-			//}
+			if (new_one >= MAX_USER) {												//NPC라면 깨우기
+				if (objects[new_one].player.position.x != moved_client->player.position.x || objects[new_one].player.position.y != moved_client->player.position.y)
+					continue;
+				objects[new_one].lua_mtx.lock();
+				auto L = objects[new_one].lua;
+				lua_getglobal(L, "event_player_move");
+				lua_pushnumber(L, client_id);
+				lua_pcall(L, 1, 0, 0);
+				lua_pop(L, 1);
+				objects[new_one].lua_mtx.unlock();
+			}
 		}
 		for (auto& old_one : old_view_list) {
 			if (new_view_list.count(old_one) == 0) {								//시야에서 사라진 플레이어
@@ -771,23 +770,23 @@ void spawn_npc()
 		
 		add_to_sector_list(npc_id);
 		
-		//auto L = objects[npc_id].lua = luaL_newstate();
-		//luaL_openlibs(L);
-		//luaL_loadfile(L, "npc.lua");
-		//int error = lua_pcall(L, 0, 0, 0);
-		//if (error) {
-		//	cout << "Error:" << lua_tostring(L, -1);
-		//	lua_pop(L, 1);
-		//}
+		auto L = objects[npc_id].lua = luaL_newstate();
+		luaL_openlibs(L);
+		luaL_loadfile(L, "npc.lua");
+		int error = lua_pcall(L, 0, 0, 0);
+		if (error) {
+			cout << "Error:" << lua_tostring(L, -1);
+			lua_pop(L, 1);
+		}
 
-		//lua_getglobal(L, "set_uid");
-		//lua_pushnumber(L, npc_id);
-		//lua_pcall(L, 1, 0, 0);
-		//// lua_pop(L, 1);// eliminate set_uid from stack after call
+		lua_getglobal(L, "set_uid");
+		lua_pushnumber(L, npc_id);
+		lua_pcall(L, 1, 0, 0);
+		// lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		//lua_register(L, "API_SendMessage", API_SendMessage);
-		//lua_register(L, "API_get_x", API_get_x);
-		//lua_register(L, "API_get_y", API_get_y);
+		lua_register(L, "API_SendMessage", API_SendMessage);
+		lua_register(L, "API_get_x", API_get_x);
+		lua_register(L, "API_get_y", API_get_y);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);

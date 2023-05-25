@@ -3,8 +3,10 @@
 
 Player::Player()
 {
+	
 }
 
 Player::~Player()
 {
+	
 }

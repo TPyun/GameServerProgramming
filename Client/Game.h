@@ -33,8 +33,8 @@ public:
 	std::unordered_map <int, Player> players;
 	std::mutex players_mtx;
 
-	char ip_address[20] = "127.0.0.1";
-	//char ip_address[20] = "192.168.0.8";
+	//char ip_address[20] = "127.0.0.1";
+	char ip_address[20] = "192.168.0.22";
 	char Port[20] = "9000";
 	char Name[20] = "";
 	std::string text_input;
@@ -75,6 +75,8 @@ private:
 	sf::Event sfml_event{};
 	sf::Text sfml_text;
 	sf::Texture player_texture[6];
+	sf::Texture sand_texture;
+	sf::Sprite sand_sprite;
 	sf::Sprite player_sprite[6];
 	sf::SoundBuffer sound_buffer[20];
 	sf::Sound sounds[20];
