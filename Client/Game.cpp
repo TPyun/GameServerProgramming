@@ -22,7 +22,6 @@ Game::Game()
 	sand_texture.setSmooth(true);
 	sand_sprite.setTexture(sand_texture);
 	
-	
 	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png" };
 	for (int act = 0; act < 6; act++) {
 		char player_tex_root[30] = "Texture/Player/";
@@ -120,14 +119,22 @@ void Game::timer()
 				player.second.chat.clear();
 			}
 		}
-
-		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.1f && abs(player.second.arr_position.y - player.second.curr_position.y) < 0.1f) {
+		
+		bool move_x = true;
+		bool move_y = true;
+		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.1f) {
 			player.second.curr_position.x = player.second.arr_position.x;
+			player.second.state = ST_IDLE;
+			move_x = false;
+		}
+		if (abs(player.second.arr_position.y - player.second.curr_position.y) < 0.1f) {
 			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
+			move_y = false;
 		}
+		
 		//lerp position in same velocity with time
-		else {
+		if(move_x || move_y) {
 			char sign_x = -1;
 			char sign_y = -1;
 			if (player.second.arr_position.x - player.second.curr_position.x == 0)
@@ -139,7 +146,7 @@ void Game::timer()
 			else if (player.second.arr_position.y - player.second.curr_position.y > 0)
 				sign_y = 1;
 			
-			float delay = 4.f;
+			float delay = 1000.f / 250.f;
 			float velocity = delay / (float)real_fps;
 			player.second.curr_position.x += (float)sign_x * velocity;
 			player.second.curr_position.y += (float)sign_y * velocity;
