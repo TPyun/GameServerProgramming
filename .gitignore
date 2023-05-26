@@ -56,6 +56,8 @@ InClass/DummyClient/x64/Release
 InClass/SQL/x64/Debug
 InClass/SQL/x64/Release
 
+InClass/ASIO
+
 Overlapped_IO_Callback/x64/Debug
 Overlapped_IO_Callback/x64/Release
 

@@ -10,7 +10,7 @@
 #include <concurrent_unordered_map.h>
 #include "Player.h"
 
-enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON };
+enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB};
 class Game
 {
 public:
@@ -33,8 +33,8 @@ public:
 	std::unordered_map <int, Player> players;
 	std::mutex players_mtx;
 
-	//char ip_address[20] = "127.0.0.1";
-	char ip_address[20] = "192.168.0.22";
+	char ip_address[20] = "127.0.0.1";
+	//char ip_address[20] = "192.168.0.22";
 	char Port[20] = "9000";
 	char Name[20] = "";
 	std::string text_input;

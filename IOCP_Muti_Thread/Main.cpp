@@ -137,7 +137,7 @@ public:
 	void send_login_info_packet();
 	void send_move_packet(int);
 	void send_direction_packet(int);
-	void send_attack_packet(int);
+	void send_attack_packet(int, bool);
 	void send_in_packet(int);
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
@@ -211,13 +211,14 @@ void SESSION::send_direction_packet(int watcher_id)
 	do_send(&packet);
 }
 
-void SESSION::send_attack_packet(int attacker_id)
+void SESSION::send_attack_packet(int attacker_id, bool hit)
 {
 	if (is_npc(this->client_id))
 		return;
 	
 	SC_ATTACK_PACKET packet;
 	packet.client_id = attacker_id;
+	packet.hit = hit;
 	do_send(&packet);
 }
 
@@ -553,12 +554,11 @@ void process_packet(int client_id, char* packet)
 			}
 		}
 		
-		attacker->send_attack_packet(client_id);
-
+		//맞았는지 안맞았는지 판단하고 그에 맞는 패킷 보내기
+		bool hit = false;
 		for (auto& defender : attacker_view_list) {
-			objects[defender].send_attack_packet(client_id);	//공격 모션
-
 			if (attack_position(client_id, defender)) {
+				hit = true;
 				objects[defender].player.decrease_hp(50);
 
 				if (objects[defender].player.hp <= 0) {
@@ -570,7 +570,10 @@ void process_packet(int client_id, char* packet)
 				}
 				objects[defender].send_stat_packet();
 			}
+			objects[defender].send_attack_packet(client_id, hit);	//공격 모션
+
 		}
+		attacker->send_attack_packet(client_id, hit);
 	}
 	break;
 	case P_CS_LOGIN:

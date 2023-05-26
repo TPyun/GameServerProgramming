@@ -169,6 +169,7 @@ struct SC_ATTACK_PACKET {
 	char type = P_SC_ATTACK;
 
 	int client_id;
+	bool hit;
 };
 struct SC_STAT_CHANGE_PACKET {
 	unsigned char size = sizeof(SC_STAT_CHANGE_PACKET);

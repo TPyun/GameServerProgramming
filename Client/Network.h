@@ -187,7 +187,12 @@ void process_packet(char* packet)
 		game->players[client_id].sprite_iter = 0;
 		game->players_mtx.unlock();
 		
-		game->play_sound(SOUND_ATTACK);
+		if (recv_packet->hit) {
+			game->play_sound(SOUND_HIT);
+		}
+		else {
+			game->play_sound(SOUND_ATTACK);
+		}
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
 	break;
@@ -226,7 +231,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
 
-		game->play_sound(SOUND_YELL);
+		//game->play_sound(SOUND_YELL);
 		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
 	break;

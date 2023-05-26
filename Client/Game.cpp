@@ -32,8 +32,8 @@ Game::Game()
 		}
 	}
 
-	char sound_file[6][20]{ "yell.wav", "hit.wav", "attack_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav"};
-	for (int type = 0; type < 6; type++) {
+	char sound_file[7][20]{ "yell.wav", "hit.wav", "attack_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav"};
+	for (int type = 0; type < 7; type++) {
 		char sounds_root[30] = "Sounds/";
 		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
 			cout << "Sound not loaded!" << endl;
@@ -43,7 +43,8 @@ Game::Game()
 		}
 	}
 	sounds[SOUND_MOVE].setLoop(true);
-	sounds[SOUND_TURN_ON].play();
+	sounds[SOUND_TAB].setVolume(150);
+	play_sound(SOUND_TURN_ON);
 	
 	sfml_window->setFramerateLimit(set_fps);
 	cout << "Press Tab to move another input box" << endl;
@@ -150,7 +151,6 @@ void Game::timer()
 			float velocity = delay / (float)real_fps;
 			player.second.curr_position.x += (float)sign_x * velocity;
 			player.second.curr_position.y += (float)sign_y * velocity;
-			
 			player.second.state = ST_MOVE;
 		}
 	
@@ -214,6 +214,7 @@ void Game::main_handle_events()
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
 		//cout << "Tab" << endl;
+		play_sound(SOUND_TAB);
 		switch (input_height) {
 		case 130:
 			input_height += 100;
@@ -561,6 +562,7 @@ void Game::game_handle_events()
 		}
 
 		if (sfml_event.key.code == sf::Keyboard::Tab) {
+			play_sound(SOUND_TAB);
 			if (information_mode)
 				information_mode = false;
 			else {
