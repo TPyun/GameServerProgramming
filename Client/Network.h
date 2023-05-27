@@ -188,10 +188,12 @@ void process_packet(char* packet)
 		game->players_mtx.unlock();
 		
 		if (recv_packet->hit) {
-			game->play_sound(SOUND_HIT);
+			game->play_sound(SOUND_SWORD_HIT);
+			//game->players[client_id].play_sound(SOUND_SWORD_HIT);
 		}
 		else {
-			game->play_sound(SOUND_ATTACK);
+			game->play_sound(SOUND_SWORD_ATTACK);
+			//game->players[client_id].play_sound(SOUND_SWORD_ATTACK);
 		}
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
@@ -205,8 +207,8 @@ void process_packet(char* packet)
 		game->players[client_id].curr_position.x = recv_packet->position.x;
 		game->players[client_id].curr_position.y = recv_packet->position.y;
 		game->players[client_id].arr_position = recv_packet->position;
-		
 		game->players[client_id].state = ST_IDLE;
+		
 		memcpy(game->players[client_id].name, recv_packet->name, 30);
 		game->players_mtx.unlock();
 		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;

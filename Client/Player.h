@@ -1,6 +1,9 @@
 #pragma once
-#include "../Protocol.h"
+#include <SFML/Graphics.hpp>
+#include <SFML/Network.hpp>
+#include <SFML/Audio.hpp>
 #include <chrono>
+#include "../Protocol.h"
 
 enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_ATTACK, ST_HIT };
 class Player
@@ -8,6 +11,7 @@ class Player
 public:
 	TF curr_position{ -500, -500 };
 	TI arr_position{ -500, -500 };
+	
 
 	Direction direction = DIR_DOWN;
 	State state = ST_IDLE;
@@ -30,6 +34,10 @@ public:
 	Player();
 	~Player();
 	
+	sf::SoundBuffer sound_buffer[20];
+	sf::Sound sounds[20];
+	void play_sound(char);
+	void stop_sound(char);
 private:
 	
 };

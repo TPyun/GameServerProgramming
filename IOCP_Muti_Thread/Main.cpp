@@ -73,7 +73,7 @@ SOCKET global_client_socket;
 SOCKET global_server_socket;
 TI randomly_spawn_player();
 void disconnect(int);
-void random_move_npc(int);
+void do_npc(int, EVENT_TYPE);
 atomic <int> player_count = 0;
 
 enum SESSION_STATE { ST_FREE, ST_ALLOC, ST_INGAME };
@@ -721,7 +721,7 @@ void work_thread()
 		}
 		case OP_NPC_MOVE: {
 			EVENT_TYPE event_type = ex_over->event_type;
-			random_move_npc(static_cast<int>(key));
+			do_npc(static_cast<int>(key), event_type);
 			delete ex_over;
 			break;
 		}
@@ -796,82 +796,93 @@ void spawn_npc()
 	cout << "NPC spawn time : " << duration.count() << " ms" << endl;
 }
 
-void random_move_npc(int npc_id)
+void do_npc(int npc_id, EVENT_TYPE event_type)
 {
-	SESSION* moved_npc = &objects[npc_id];
+	SESSION* this_npc = &objects[npc_id];
 
-	if (!moved_npc->is_active_npc)
+	if (!this_npc->is_active_npc)
 		return;
 
-	unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
-	moved_npc->view_list_mtx.lock();
-	unordered_set<int> old_view_list = moved_npc->view_list;			//이전 뷰 리스트 복사
-	moved_npc->view_list_mtx.unlock();
-	
-	if (old_view_list.size() == 0) {
-		//cout << npc_id << " 잔다 NPC\n";
-		moved_npc->is_active_npc = false;
-		return;
-	}
-
-	remove_from_sector_list(npc_id);
-
-	random_device rd;
-	default_random_engine dre(rd());
-	uniform_int_distribution <int>random_direction(0, 3);
-	switch (random_direction(dre))
+	switch (event_type) {
+	case EV_MOVE:
 	{
-	case 0: moved_npc->player.key_input.up = true; break;
-	case 1: moved_npc->player.key_input.down = true; break;
-	case 2: moved_npc->player.key_input.left = true; break;
-	case 3: moved_npc->player.key_input.right = true; break;
-	}
-	
-	moved_npc->player.key_check();
-	moved_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
-	
-	add_to_sector_list(npc_id);
-	unordered_set<int> list_of_sector;
-	get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
+		unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
+		this_npc->view_list_mtx.lock();
+		unordered_set<int> old_view_list = this_npc->view_list;			//이전 뷰 리스트 복사
+		this_npc->view_list_mtx.unlock();
 
-	for (auto& client_in_sector : list_of_sector) {
-		if (is_npc(client_in_sector)) continue;
+		if (old_view_list.size() == 0) {
+			//cout << npc_id << " 잔다 NPC\n";
+			this_npc->is_active_npc = false;
+			return;
+		}
+
+		remove_from_sector_list(npc_id);
+
+		random_device rd;
+		default_random_engine dre(rd());
+		uniform_int_distribution <int>random_direction(0, 3);
+		switch (random_direction(dre))
 		{
-			lock_guard<mutex> m(objects[npc_id].state_mtx);
-			if (objects[client_in_sector].state != ST_INGAME) continue;
+		case 0: this_npc->player.key_input.up = true; break;
+		case 1: this_npc->player.key_input.down = true; break;
+		case 2: this_npc->player.key_input.left = true; break;
+		case 3: this_npc->player.key_input.right = true; break;
 		}
-		if (objects[client_in_sector].client_id == npc_id) continue;
-		if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
-			new_view_list.insert(client_in_sector);								//new list 채우기
-		}
-	}
-	
-	for (auto& new_one : new_view_list) {
-		if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
-			objects[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
-			objects[new_one].send_in_packet(npc_id);					//새로 시야에 들어온 플레이어에게 움직인 플레이어 정보 전송
-		}
-		else {
-			objects[new_one].send_move_packet(npc_id);
-		}
-	}
-	for (auto& old_one : old_view_list) {
-		if (new_view_list.count(old_one) == 0) {					//시야에서 사라진 플레이어
-			objects[old_one].send_out_packet(npc_id);			//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
-			objects[old_one].erase_view_list(npc_id);		//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
-		}
-	}
-	moved_npc->view_list_mtx.lock();
-	moved_npc->view_list = new_view_list;								//뷰 리스트 갱신
-	moved_npc->view_list_mtx.unlock();
 
-	if (new_view_list.size() == 0) {
-		//cout << npc_id << " 잔다 NPC\n";
-		moved_npc->is_active_npc = false;
-		return;
+		this_npc->player.key_check();
+		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+
+		add_to_sector_list(npc_id);
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
+
+		for (auto& client_in_sector : list_of_sector) {
+			if (is_npc(client_in_sector)) continue;
+			{
+				lock_guard<mutex> m(objects[npc_id].state_mtx);
+				if (objects[client_in_sector].state != ST_INGAME) continue;
+			}
+			if (objects[client_in_sector].client_id == npc_id) continue;
+			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(client_in_sector);								//new list 채우기
+			}
+		}
+
+		for (auto& new_one : new_view_list) {
+			if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
+				objects[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+				objects[new_one].send_in_packet(npc_id);					//새로 시야에 들어온 플레이어에게 움직인 플레이어 정보 전송
+			}
+			else {
+				objects[new_one].send_move_packet(npc_id);
+			}
+		}
+		for (auto& old_one : old_view_list) {
+			if (new_view_list.count(old_one) == 0) {					//시야에서 사라진 플레이어
+				objects[old_one].send_out_packet(npc_id);			//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+				objects[old_one].erase_view_list(npc_id);		//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+			}
+		}
+		this_npc->view_list_mtx.lock();
+		this_npc->view_list = new_view_list;								//뷰 리스트 갱신
+		this_npc->view_list_mtx.unlock();
+
+		if (new_view_list.size() == 0) {
+			//cout << npc_id << " 잔다 NPC\n";
+			this_npc->is_active_npc = false;
+			return;
+		}
+		//cout << npc_id << " moving\n";
 	}
-	//cout << npc_id << " moving\n";
-	
+	break;
+	case EV_ATTACK:
+	{
+		
+	}
+	break;
+	}
+
 	uniform_int_distribution <int>random_term(1000, 1500);
 	reserve_timer(npc_id, EV_MOVE, 1000);
 }

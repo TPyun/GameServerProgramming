@@ -22,7 +22,7 @@ Game::Game()
 	sand_texture.setSmooth(true);
 	sand_sprite.setTexture(sand_texture);
 	
-	char player_tex_file[6][20]{ "Idle.png", "Walk.png", "Run.png", "Push.png", "Attack.png", "Hit.png" };
+	char player_tex_file[6][20]{ "Idle_new.png", "Walk_new.png", "Run_new.png", "Push_new.png", "Attack.png", "Hit_new.png" };
 	for (int act = 0; act < 6; act++) {
 		char player_tex_root[30] = "Texture/Player/";
 		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
@@ -32,8 +32,8 @@ Game::Game()
 		}
 	}
 
-	char sound_file[7][20]{ "yell.wav", "hit.wav", "attack_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav"};
-	for (int type = 0; type < 7; type++) {
+	char sound_file[9][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav"};
+	for (int type = 0; type < 9; type++) {
 		char sounds_root[30] = "Sounds/";
 		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
 			cout << "Sound not loaded!" << endl;
@@ -127,15 +127,18 @@ void Game::timer()
 			player.second.curr_position.x = player.second.arr_position.x;
 			player.second.state = ST_IDLE;
 			move_x = false;
+			//stop_sound(SOUND_MOVE);
 		}
 		if (abs(player.second.arr_position.y - player.second.curr_position.y) < 0.1f) {
 			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
 			move_y = false;
+			//stop_sound(SOUND_MOVE);
 		}
 		
 		//lerp position in same velocity with time
 		if(move_x || move_y) {
+			//play_sound(SOUND_MOVE);
 			char sign_x = -1;
 			char sign_y = -1;
 			if (player.second.arr_position.x - player.second.curr_position.x == 0)
@@ -411,7 +414,7 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 	unsigned char sprite_i = this_player->sprite_iter;
 	
 	player_sprite[this_player->state].setColor(color);
-	player_sprite[this_player->state].setScale(size, size);
+	player_sprite[this_player->state].setScale(size, size * 1.1f);
 
 	switch (this_player->state) {
 	case ST_MOVE:

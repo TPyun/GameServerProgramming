@@ -1,7 +1,4 @@
 #pragma once
-#include <SFML/Graphics.hpp>
-#include <SFML/Network.hpp>
-#include <SFML/Audio.hpp>
 #include <string>
 #include <unordered_map>
 #include <mutex>
@@ -10,7 +7,7 @@
 #include <concurrent_unordered_map.h>
 #include "Player.h"
 
-enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB};
+enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_SWORD_HIT, SOUND_SWORD_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB};
 class Game
 {
 public:
@@ -50,7 +47,10 @@ public:
 	bool direction_flag = false;
 	bool attack_flag = false;
 	bool chat_flag = false;
-	
+
+	sf::SoundBuffer sound_buffer[20];
+	sf::Sound sounds[20];
+
 private:
 	TI get_relative_location(TI);
 	TI get_relative_location(TF);
@@ -78,8 +78,6 @@ private:
 	sf::Texture sand_texture;
 	sf::Sprite sand_sprite;
 	sf::Sprite player_sprite[6];
-	sf::SoundBuffer sound_buffer[20];
-	sf::Sound sounds[20];
 
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
 	bool isRunning = true;
