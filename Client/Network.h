@@ -188,13 +188,19 @@ void process_packet(char* packet)
 		game->players_mtx.unlock();
 		
 		if (recv_packet->hit) {
-			game->play_sound(SOUND_SWORD_HIT);
-			//game->players[client_id].play_sound(SOUND_SWORD_HIT);
+			game->play_sound(SOUND_SWORD_HIT, false);
+			
+			if (recv_packet->dead)
+				game->play_sound(SOUND_YELL, false);
+			else
+				game->play_sound(SOUND_DEAD, false);
 		}
 		else {
-			game->play_sound(SOUND_SWORD_ATTACK);
-			//game->players[client_id].play_sound(SOUND_SWORD_ATTACK);
+			game->play_sound(SOUND_SWORD_ATTACK, false);
 		}
+
+		
+		
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
 	break;

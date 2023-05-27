@@ -137,7 +137,7 @@ public:
 	void send_login_info_packet();
 	void send_move_packet(int);
 	void send_direction_packet(int);
-	void send_attack_packet(int, bool);
+	void send_attack_packet(int, bool, bool);
 	void send_in_packet(int);
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
@@ -211,7 +211,7 @@ void SESSION::send_direction_packet(int watcher_id)
 	do_send(&packet);
 }
 
-void SESSION::send_attack_packet(int attacker_id, bool hit)
+void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead)
 {
 	if (is_npc(this->client_id))
 		return;
@@ -219,6 +219,7 @@ void SESSION::send_attack_packet(int attacker_id, bool hit)
 	SC_ATTACK_PACKET packet;
 	packet.client_id = attacker_id;
 	packet.hit = hit;
+	packet.dead = dead;
 	do_send(&packet);
 }
 
@@ -431,6 +432,19 @@ void wake_up_npc(int npc_id)
 	reserve_timer(npc_id, EV_MOVE, 500);
 }
 
+void npc_talk(int npc_id, int client_id)
+{
+	/*if (objects[npc_id].player.position.x != objects[client_id].player.position.x || objects[npc_id].player.position.y != objects[client_id].player.position.y)
+		return;*/
+	objects[npc_id].lua_mtx.lock();
+	auto L = objects[npc_id].lua;
+	lua_getglobal(L, "event_player_move");
+	lua_pushnumber(L, client_id);
+	lua_pcall(L, 1, 0, 0);
+	lua_pop(L, 1);
+	objects[npc_id].lua_mtx.unlock();
+}
+
 void process_packet(int client_id, char* packet)
 {
 	switch (packet[1]) {
@@ -484,16 +498,8 @@ void process_packet(int client_id, char* packet)
 			else
 				objects[new_one].send_move_packet(client_id);						//기존에 있었으면 무브
 
-			if (new_one >= MAX_USER) {												//NPC라면 깨우기
-				if (objects[new_one].player.position.x != moved_client->player.position.x || objects[new_one].player.position.y != moved_client->player.position.y)
-					continue;
-				objects[new_one].lua_mtx.lock();
-				auto L = objects[new_one].lua;
-				lua_getglobal(L, "event_player_move");
-				lua_pushnumber(L, client_id);
-				lua_pcall(L, 1, 0, 0);
-				lua_pop(L, 1);
-				objects[new_one].lua_mtx.unlock();
+			if (is_npc(new_one)) {
+				npc_talk(new_one, client_id);
 			}
 		}
 		for (auto& old_one : old_view_list) {
@@ -556,24 +562,25 @@ void process_packet(int client_id, char* packet)
 		
 		//맞았는지 안맞았는지 판단하고 그에 맞는 패킷 보내기
 		bool hit = false;
-		for (auto& defender : attacker_view_list) {
-			if (attack_position(client_id, defender)) {
+		bool dead = false;
+		for (auto& watcher : attacker_view_list) {
+			if (attack_position(client_id, watcher)) {
 				hit = true;
-				objects[defender].player.decrease_hp(50);
+				objects[watcher].player.decrease_hp(50);
 
-				if (objects[defender].player.hp <= 0) {
-					int defender_level = objects[defender].player.level;
+				if (objects[watcher].player.hp <= 0) {							//죽었을 때
+					dead = true;
+					int defender_level = objects[watcher].player.level;
 					attacker->player.increase_exp(defender_level * 50);
 					attacker->send_stat_packet();
 
-					disconnect(defender);
+					disconnect(watcher);
 				}
-				objects[defender].send_stat_packet();
+				objects[watcher].send_stat_packet();							//맞은놈 스탯
 			}
-			objects[defender].send_attack_packet(client_id, hit);	//공격 모션
-
+			objects[watcher].send_attack_packet(client_id, hit, dead);		//공격 모션
 		}
-		attacker->send_attack_packet(client_id, hit);
+		attacker->send_attack_packet(client_id, hit, dead);					//맞는 소리
 	}
 	break;
 	case P_CS_LOGIN:

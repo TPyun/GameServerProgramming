@@ -7,7 +7,7 @@
 #include <concurrent_unordered_map.h>
 #include "Player.h"
 
-enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_SWORD_HIT, SOUND_SWORD_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB};
+enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_SWORD_HIT, SOUND_SWORD_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB, SOUND_DEAD};
 class Game
 {
 public:
@@ -22,8 +22,8 @@ public:
 	bool get_running() { return isRunning; }
 	void initialize_main();
 	void initialize_ingame();
-	void play_sound(char sound);
-	void stop_sound(char sound);
+	void play_sound(char, bool);
+	void stop_sound(char);
 
 	//ingame scene
 	KS key_input{ false, false, false, false };
@@ -48,8 +48,8 @@ public:
 	bool attack_flag = false;
 	bool chat_flag = false;
 
-	sf::SoundBuffer sound_buffer[20];
-	sf::Sound sounds[20];
+	sf::SoundBuffer sound_buffer[100];
+	sf::Sound sounds[100];
 
 private:
 	TI get_relative_location(TI);

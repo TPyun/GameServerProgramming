@@ -170,6 +170,7 @@ struct SC_ATTACK_PACKET {
 
 	int client_id;
 	bool hit;
+	bool dead;
 };
 struct SC_STAT_CHANGE_PACKET {
 	unsigned char size = sizeof(SC_STAT_CHANGE_PACKET);
@@ -180,5 +181,4 @@ struct SC_STAT_CHANGE_PACKET {
 	int	exp;
 	int	level;
 };
-
 #pragma pack (pop)

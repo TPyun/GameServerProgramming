@@ -32,19 +32,14 @@ Game::Game()
 		}
 	}
 
-	char sound_file[9][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav"};
-	for (int type = 0; type < 9; type++) {
+	char sound_file[100][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav", "dead.wav"};
+	for (int type = 0; type < 100; type++) {
 		char sounds_root[30] = "Sounds/";
 		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
 			cout << "Sound not loaded!" << endl;
-		else {
-			sounds[type].setBuffer(sound_buffer[type]);
-			sounds[type].setVolume(10);
-		}
 	}
-	sounds[SOUND_MOVE].setLoop(true);
-	sounds[SOUND_TAB].setVolume(150);
-	play_sound(SOUND_TURN_ON);
+
+	play_sound(SOUND_TURN_ON, false);
 	
 	sfml_window->setFramerateLimit(set_fps);
 	cout << "Press Tab to move another input box" << endl;
@@ -217,7 +212,7 @@ void Game::main_handle_events()
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
 		//cout << "Tab" << endl;
-		play_sound(SOUND_TAB);
+		play_sound(SOUND_TAB, false);
 		switch (input_height) {
 		case 130:
 			input_height += 100;
@@ -278,7 +273,7 @@ TI Game::get_relative_location(TF position)
 void Game::initialize_main()
 {
 	stop_sound(SOUND_ENV);
-	play_sound(SOUND_TURN_ON);
+	play_sound(SOUND_TURN_ON, false);
 	
 	input_height = 130;
 	text_input = "";
@@ -288,24 +283,41 @@ void Game::initialize_main()
 
 void Game::initialize_ingame()
 {
-	play_sound(SOUND_ENV);
+	play_sound(SOUND_ENV, true);
 	stop_sound(SOUND_TURN_ON);
 	
 	information_mode = false;
 	chat_mode = false;
 	scene = 1;
+	
 	cout << "You can move with direction keys." << endl;
 	cout << "Press Tab to see information." << endl;
 }
 
-void Game::play_sound(char sound)
+void Game::play_sound(char type, bool loop)
 {
-	sounds[sound].play();
+	/*int i = 0;
+	for (auto& sound : sounds) {
+		cout << i << " " << sound.getStatus() << endl;
+		i++;
+	}*/
+	for (auto& sound : sounds) {
+		if (sound.getStatus() == 0) {
+			sound.setBuffer(sound_buffer[type]);
+			sound.setLoop(loop);
+			sound.play();
+			return;
+		}
+	}
 }
 
-void Game::stop_sound(char sound)
+void Game::stop_sound(char type)
 {
-	sounds[sound].stop();
+	for (auto& sound : sounds) {
+		if (sound.getStatus() != 0 && sound.getBuffer() == &sound_buffer[type]) {
+			sound.stop();
+		}
+	}
 }
 
 void Game::draw_game()
@@ -565,12 +577,11 @@ void Game::game_handle_events()
 		}
 
 		if (sfml_event.key.code == sf::Keyboard::Tab) {
-			play_sound(SOUND_TAB);
+			play_sound(SOUND_TAB, false);
 			if (information_mode)
 				information_mode = false;
-			else {
+			else
 				information_mode = true;
-			}
 		}
 		if (sfml_event.key.code == sf::Keyboard::T) {
 			if (chat_mode)
