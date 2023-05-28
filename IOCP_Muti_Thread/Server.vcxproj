@@ -133,6 +133,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Protocol.h" />
+    <ClInclude Include="AStar.h" />
     <ClInclude Include="Player.h" />
   </ItemGroup>
   <ItemGroup>

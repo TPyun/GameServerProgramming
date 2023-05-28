@@ -191,8 +191,6 @@ void process_packet(char* packet)
 			game->play_sound(SOUND_SWORD_HIT, false);
 			
 			if (recv_packet->dead)
-				game->play_sound(SOUND_YELL, false);
-			else
 				game->play_sound(SOUND_DEAD, false);
 		}
 		else {

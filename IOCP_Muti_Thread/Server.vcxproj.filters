@@ -29,6 +29,9 @@
     <ClInclude Include="..\Protocol.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="AStar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="npc.lua">

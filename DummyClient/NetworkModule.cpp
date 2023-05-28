@@ -179,8 +179,12 @@ void ProcessPacket(int ci, unsigned char packet[])
 	{
 		break;
 	}
-	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
-		while (true);
+	case P_SC_STAT_CHANGE:
+	{
+		break;
+	}
+	default: cout << "Unknown Packet Type : " << packet[1] << endl;
+		break;
 	}
 }
 bool running = true;

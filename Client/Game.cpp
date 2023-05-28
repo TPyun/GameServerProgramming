@@ -39,11 +39,10 @@ Game::Game()
 			cout << "Sound not loaded!" << endl;
 	}
 
-	play_sound(SOUND_TURN_ON, false);
-	
 	sfml_window->setFramerateLimit(set_fps);
 	cout << "Press Tab to move another input box" << endl;
 	cout << "Press Enter to connect" << endl;
+	initialize_main();
 }
 
 Game::~Game()
@@ -274,9 +273,10 @@ void Game::initialize_main()
 {
 	stop_sound(SOUND_ENV);
 	play_sound(SOUND_TURN_ON, false);
-	
+	ZeroMemory(&key_input, sizeof(key_input));
+
 	input_height = 130;
-	text_input = "";
+	text_input = ip_address;
 	input_warning = false;
 	scene = 0;
 }
@@ -285,7 +285,8 @@ void Game::initialize_ingame()
 {
 	play_sound(SOUND_ENV, true);
 	stop_sound(SOUND_TURN_ON);
-	
+	ZeroMemory(&key_input, sizeof(key_input));
+
 	information_mode = false;
 	chat_mode = false;
 	scene = 1;

@@ -30,10 +30,10 @@ public:
 	std::unordered_map <int, Player> players;
 	std::mutex players_mtx;
 
-	char ip_address[20] = "127.0.0.1";
+	char ip_address[30] = "127.0.0.1";
 	//char ip_address[20] = "192.168.0.22";
-	char Port[20] = "9000";
-	char Name[20] = "";
+	char Port[30] = "9000";
+	char Name[30] = "";
 	std::string text_input;
 
 	bool try_connect = false;

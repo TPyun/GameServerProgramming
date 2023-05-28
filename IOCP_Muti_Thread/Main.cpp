@@ -8,7 +8,8 @@
 #include <unordered_set>
 #include <queue>
 #include <string>
-#include "Player.h"
+#include <cmath>
+#include "AStar.h"
 
 extern "C"
 {
@@ -25,7 +26,7 @@ unordered_set<int>** sector_list;
 mutex** sector_mutex;
 
 HANDLE h_iocp;
-enum EVENT_TYPE { EV_MOVE, EV_ATTACK };
+enum EVENT_TYPE { EV_SLEEP, EV_MOVE, EV_ATTACK, EV_FOLLOW };
 class EVENT {
 public:
 	int object_id;
@@ -42,7 +43,7 @@ public:
 priority_queue<EVENT> timer_queue;
 mutex timer_mtx;
 
-enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC_MOVE };
+enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC };
 class OVER_EXP {
 public:
 	WSAOVERLAPPED over;	//클래스의 맨 첫번째에 있어야만 함. 이거를 가지고 클래스 포인터 위치 찾을거임
@@ -96,6 +97,7 @@ public:
 	mutex	lua_mtx;
 	
 	atomic_bool	is_active_npc;
+	int enemy_id;
 
 	SESSION() {
 		state = ST_FREE;
@@ -436,13 +438,13 @@ void npc_talk(int npc_id, int client_id)
 {
 	/*if (objects[npc_id].player.position.x != objects[client_id].player.position.x || objects[npc_id].player.position.y != objects[client_id].player.position.y)
 		return;*/
-	objects[npc_id].lua_mtx.lock();
+	/*objects[npc_id].lua_mtx.lock();
 	auto L = objects[npc_id].lua;
 	lua_getglobal(L, "event_player_move");
 	lua_pushnumber(L, client_id);
 	lua_pcall(L, 1, 0, 0);
 	lua_pop(L, 1);
-	objects[npc_id].lua_mtx.unlock();
+	objects[npc_id].lua_mtx.unlock();*/
 }
 
 void process_packet(int client_id, char* packet)
@@ -578,6 +580,9 @@ void process_packet(int client_id, char* packet)
 				}
 				objects[watcher].send_stat_packet();							//맞은놈 스탯
 			}
+		}
+
+		for (auto& watcher : attacker_view_list) {
 			objects[watcher].send_attack_packet(client_id, hit, dead);		//공격 모션
 		}
 		attacker->send_attack_packet(client_id, hit, dead);					//맞는 소리
@@ -726,7 +731,7 @@ void work_thread()
 			AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 			break;
 		}
-		case OP_NPC_MOVE: {
+		case OP_NPC: {
 			EVENT_TYPE event_type = ex_over->event_type;
 			do_npc(static_cast<int>(key), event_type);
 			delete ex_over;
@@ -769,34 +774,39 @@ int API_SendMessage(lua_State* L)
 
 void spawn_npc()
 {
+	random_device rd;
+	default_random_engine dre(rd());
+	uniform_int_distribution <int>random_personality(0, 2);
+	
 	auto start_t = chrono::system_clock::now();
 	for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {
 		objects[npc_id].client_id = npc_id;
 		objects[npc_id].view_list.clear();
 		objects[npc_id].state = ST_INGAME;
 		objects[npc_id].player.position = randomly_spawn_player();
-		
+		objects[npc_id].player.personality = static_cast<PERSONALITY>(random_personality(dre));
+		objects[npc_id].enemy_id = -1;
 		sprintf_s(objects[npc_id].player.name, "NPC %d", npc_id);
 		
 		add_to_sector_list(npc_id);
 		
-		auto L = objects[npc_id].lua = luaL_newstate();
-		luaL_openlibs(L);
-		luaL_loadfile(L, "npc.lua");
-		int error = lua_pcall(L, 0, 0, 0);
-		if (error) {
-			cout << "Error:" << lua_tostring(L, -1);
-			lua_pop(L, 1);
-		}
+		//auto L = objects[npc_id].lua = luaL_newstate();
+		//luaL_openlibs(L);
+		//luaL_loadfile(L, "npc.lua");
+		//int error = lua_pcall(L, 0, 0, 0);
+		//if (error) {
+		//	cout << "Error:" << lua_tostring(L, -1);
+		//	lua_pop(L, 1);
+		//}
 
-		lua_getglobal(L, "set_uid");
-		lua_pushnumber(L, npc_id);
-		lua_pcall(L, 1, 0, 0);
-		// lua_pop(L, 1);// eliminate set_uid from stack after call
+		//lua_getglobal(L, "set_uid");
+		//lua_pushnumber(L, npc_id);
+		//lua_pcall(L, 1, 0, 0);
+		//// lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		lua_register(L, "API_SendMessage", API_SendMessage);
-		lua_register(L, "API_get_x", API_get_x);
-		lua_register(L, "API_get_y", API_get_y);
+		//lua_register(L, "API_SendMessage", API_SendMessage);
+		//lua_register(L, "API_get_x", API_get_x);
+		//lua_register(L, "API_get_y", API_get_y);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
@@ -810,6 +820,10 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 	if (!this_npc->is_active_npc)
 		return;
 
+	random_device rd;
+	default_random_engine dre(rd());
+	
+	
 	switch (event_type) {
 	case EV_MOVE:
 	{
@@ -825,17 +839,190 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		}
 
 		remove_from_sector_list(npc_id);
-
-		random_device rd;
-		default_random_engine dre(rd());
-		uniform_int_distribution <int>random_direction(0, 3);
+		
+		uniform_int_distribution <int>random_direction(0, 2);
+		bool moved = true;
 		switch (random_direction(dre))
 		{
 		case 0: this_npc->player.key_input.up = true; break;
 		case 1: this_npc->player.key_input.down = true; break;
-		case 2: this_npc->player.key_input.left = true; break;
-		case 3: this_npc->player.key_input.right = true; break;
+		case 2: moved = false;
 		}
+		switch (random_direction(dre))
+		{
+		case 0: this_npc->player.key_input.left = true; break;
+		case 1: this_npc->player.key_input.right = true; break;
+		case 2: moved = false;
+		}
+		if (!moved) {
+			add_to_sector_list(npc_id);
+			break;
+		}
+
+		this_npc->player.key_check();
+		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+
+		add_to_sector_list(npc_id);
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
+
+		for (auto& client_in_sector : list_of_sector) {
+			if (is_npc(client_in_sector)) continue;
+			{
+				lock_guard<mutex> m(objects[npc_id].state_mtx);
+				if (objects[client_in_sector].state != ST_INGAME) continue;
+			}
+			if (objects[client_in_sector].client_id == npc_id) continue;
+			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
+				new_view_list.insert(client_in_sector);								//new list 채우기
+			}
+		}
+
+		for (auto& new_one : new_view_list) {
+			if (old_view_list.count(new_one) == 0) {					//새로 시야에 들어온 플레이어
+				objects[new_one].insert_view_list(npc_id);		//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+				objects[new_one].send_in_packet(npc_id);					//새로 시야에 들어온 플레이어에게 움직인 플레이어 정보 전송
+			}
+			else {
+				objects[new_one].send_move_packet(npc_id);
+			}
+		}
+		for (auto& old_one : old_view_list) {
+			if (new_view_list.count(old_one) == 0) {					//시야에서 사라진 플레이어
+				objects[old_one].send_out_packet(npc_id);			//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+				objects[old_one].erase_view_list(npc_id);		//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+			}
+		}  
+		this_npc->view_list_mtx.lock();
+		this_npc->view_list = new_view_list;								//뷰 리스트 갱신
+		this_npc->view_list_mtx.unlock();
+
+		if (new_view_list.size() == 0) {
+			//cout << npc_id << " 잔다 NPC\n";
+			this_npc->is_active_npc = false;
+			return;
+		}
+		//cout << npc_id << " moving\n";
+	}
+	break;
+	case EV_ATTACK:
+	{
+		unordered_set<int> attacker_view_list;
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(npc_id, list_of_sector);
+		for (auto& client_in_sector : list_of_sector) {
+			{
+				lock_guard<mutex> m(objects[npc_id].state_mtx);
+				if (objects[client_in_sector].state != ST_INGAME) continue;
+			}
+			if (client_in_sector == npc_id) continue;
+			if (in_eyesight(npc_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
+				attacker_view_list.insert(client_in_sector);								//new list 채우기
+			}
+		}
+
+		//맞았는지 안맞았는지 판단하고 그에 맞는 패킷 보내기
+		bool hit = false;
+		bool dead = false;
+		for (auto& watcher : attacker_view_list) {
+			if (attack_position(npc_id, watcher)) {
+				hit = true;
+				objects[watcher].player.decrease_hp(50);
+
+				if (objects[watcher].player.hp <= 0) {							//죽었을 때
+					dead = true;
+					int defender_level = objects[watcher].player.level;
+					this_npc->player.increase_exp(defender_level * 50);
+					this_npc->send_stat_packet();
+
+					disconnect(watcher);
+				}
+				objects[watcher].send_stat_packet();							//맞은놈 스탯
+			}
+		}
+
+		for (auto& watcher : attacker_view_list) {
+			objects[watcher].send_attack_packet(npc_id, hit, dead);		//공격 모션
+		}
+		this_npc->send_attack_packet(npc_id, hit, dead);					//맞는 소리
+	}
+	break;
+	case EV_FOLLOW:
+	{
+		unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
+		this_npc->view_list_mtx.lock();
+		unordered_set<int> old_view_list = this_npc->view_list;			//이전 뷰 리스트 복사
+		this_npc->view_list_mtx.unlock();
+
+		if (old_view_list.size() == 0) {
+			//cout << npc_id << " 잔다 NPC\n";
+			this_npc->is_active_npc = false;
+			return;
+		}
+		
+		this_npc->enemy_id = *old_view_list.begin();
+		TI my_position{ this_npc->player.position.x, this_npc->player.position.y };
+		TI enemy_position{ objects[this_npc->enemy_id].player.position.x, objects[this_npc->enemy_id].player.position.y };
+		
+		bool same_pos_x{ false };
+		bool same_pos_y{ false };
+		if (my_position.x > enemy_position.x) {
+			my_position.x -= enemy_position.x;
+			enemy_position.x = 0;
+		}
+		else if((my_position.x < enemy_position.x)) {
+			enemy_position.x -= my_position.x;
+			my_position.x = 0;
+		}
+		else {
+			my_position.x = 0;
+			enemy_position.x = 0;
+			same_pos_x = true;
+		}
+		
+		if (my_position.y > enemy_position.y) {
+			my_position.y -= enemy_position.y;
+			enemy_position.y = 0;
+		}
+		else if ((my_position.y < enemy_position.y)) {
+			enemy_position.y -= my_position.y;
+			my_position.y = 0;
+		}
+		else {
+			my_position.y = 0;
+			enemy_position.y = 0;
+			same_pos_y = true;
+		}
+		if (same_pos_x && same_pos_y) {
+			//cout << npc_id << " 같은 위치\n";
+			break;
+		}
+		
+		TI diff = { abs(enemy_position.x - my_position.x) + 1, abs(enemy_position.y - my_position.y) + 1 };
+		TI next_position = turn_astar(my_position, enemy_position, diff);
+		//cout << "my_position: " << my_position.x << ", " << my_position.y << " enemy_position: " << enemy_position.x << ", " << enemy_position.y << " diff: " << diff.x << ", " << diff.y << endl;
+		//cout << "my_position: " << my_position.x << ", " << my_position.y << " next_pos: " << next_position.x << ", " << next_position.y << endl;
+
+		remove_from_sector_list(npc_id);
+		
+		if (my_position.y > next_position.y) {
+			this_npc->player.direction = DIR_UP;
+			this_npc->player.key_input.up = true;
+		}
+		if (my_position.y < next_position.y) {
+			this_npc->player.direction = DIR_DOWN;
+			this_npc->player.key_input.down = true;
+		}
+		if (my_position.x > next_position.x) {
+			this_npc->player.direction = DIR_LEFT;
+			this_npc->player.key_input.left = true; 
+		}
+		if (my_position.x < next_position.x) {
+			this_npc->player.direction = DIR_RIGHT;
+			this_npc->player.key_input.right = true;
+		}
+		
+		//cout << "npc_id: " << npc_id << " up: " << this_npc->player.key_input.up << " down: " << this_npc->player.key_input.down << " left: " << this_npc->player.key_input.left << " right: " << this_npc->player.key_input.right << endl;
 
 		this_npc->player.key_check();
 		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
@@ -880,18 +1067,25 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			this_npc->is_active_npc = false;
 			return;
 		}
-		//cout << npc_id << " moving\n";
 	}
-	break;
-	case EV_ATTACK:
+	case EV_SLEEP:
 	{
-		
+		//cout << npc_id << " 잔다 NPC\n";
 	}
 	break;
 	}
 
-	uniform_int_distribution <int>random_term(1000, 1500);
-	reserve_timer(npc_id, EV_MOVE, 1000);
+	uniform_int_distribution <int>random_action(1, 100);
+	int action = random_action(dre);
+	//cout << "action: " << action << endl;
+	if (action <= 10) 
+		reserve_timer(npc_id, EV_ATTACK, 1000);
+	else if (action <= 50)
+		reserve_timer(npc_id, EV_MOVE, 1000);
+	else if (action <= 90)
+		reserve_timer(npc_id, EV_FOLLOW, 1000);
+	else if (action <= 100)
+		reserve_timer(npc_id, EV_SLEEP, 1000);
 }
 
 void do_timer()
@@ -920,26 +1114,25 @@ void do_timer()
 		timer_queue.pop();
 		timer_mtx.unlock();
 		
-		switch (event.type) {
-		case EV_MOVE: {
-			OVER_EXP* over = new OVER_EXP();
-			over->event_type = event.type;
-			over->completion_type = OP_NPC_MOVE;
-			PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
-			/*++num_excuted_npc;
-			if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
-				cout << num_excuted_npc << "개의 NPC가 움직임\n";
-				num_excuted_npc = 0;
-				start_t = chrono::high_resolution_clock::now();
-			}*/
-			break;
-		}
-		}
+		OVER_EXP* over = new OVER_EXP();
+		over->event_type = event.type;
+		over->completion_type = OP_NPC;
+		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
+			
+		/*++num_excuted_npc;
+		if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
+			cout << num_excuted_npc << "개의 NPC가 움직임\n";
+			num_excuted_npc = 0;
+			start_t = chrono::high_resolution_clock::now();
+		}*/
 	}
 }
 
 int main()
 {
+	TI next_position = turn_astar({0,0}, {9,9}, {10, 10});
+	cout << next_position.x << " " << next_position.y << endl;
+	
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
 	global_server_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
