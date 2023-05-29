@@ -17,13 +17,17 @@ constexpr int HEIGHT = 735;	//Client
 constexpr int MAP_SIZE = 2000;		//Server
 
 constexpr int CLIENT_RANGE = 21;		//Client
-constexpr int VIEW_RANGE = 7;	//Server
+constexpr int VIEW_RANGE = 10;	//Server
 constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
 constexpr int SECTOR_NUM = MAP_SIZE / SECTOR_SIZE + 1;	//Server
 
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
 constexpr int MAX_CHAT = 100;
+
+constexpr int PLAYER_MOVE_TIME = 250;
+constexpr int NPC_MOVE_TIME = 400;
+
 
 constexpr char P_CS_LOGIN = 0;
 constexpr char P_CS_MOVE = 1;

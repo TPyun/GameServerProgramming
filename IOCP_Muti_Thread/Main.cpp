@@ -26,7 +26,7 @@ unordered_set<int>** sector_list;
 mutex** sector_mutex;
 
 HANDLE h_iocp;
-enum EVENT_TYPE { EV_SLEEP, EV_MOVE, EV_ATTACK, EV_FOLLOW };
+enum EVENT_TYPE { EV_SLEEP, EV_MOVE, EV_ATTACK, EV_FOLLOW, EV_DIRECTION };
 class EVENT {
 public:
 	int object_id;
@@ -402,8 +402,12 @@ bool in_eyesight(int p1, int p2)
 
 bool attack_position(int attacker, int defender)
 {
-	if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y) return true;
-	if (objects[attacker].player.position.x + objects[attacker].player.ti_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.ti_direction.y == objects[defender].player.position.y) return true;
+	if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y) { 
+		return true;
+	}
+	if (objects[attacker].player.position.x + objects[attacker].player.ti_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.ti_direction.y == objects[defender].player.position.y) {
+		return true;
+	}
 	return false;
 }
 
@@ -569,6 +573,10 @@ void process_packet(int client_id, char* packet)
 			if (attack_position(client_id, watcher)) {
 				hit = true;
 				objects[watcher].player.decrease_hp(50);
+
+				if (is_npc(watcher)) {
+					objects[watcher].enemy_id = client_id;
+				}
 
 				if (objects[watcher].player.hp <= 0) {							//죽었을 때
 					dead = true;
@@ -827,6 +835,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 	switch (event_type) {
 	case EV_MOVE:
 	{
+		//cout << "NPC " << npc_id << " move" << endl;
 		unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
 		this_npc->view_list_mtx.lock();
 		unordered_set<int> old_view_list = this_npc->view_list;			//이전 뷰 리스트 복사
@@ -840,23 +849,16 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 		remove_from_sector_list(npc_id);
 		
-		uniform_int_distribution <int>random_direction(0, 2);
-		bool moved = true;
+		uniform_int_distribution <int>random_direction(0, 1);
 		switch (random_direction(dre))
 		{
 		case 0: this_npc->player.key_input.up = true; break;
 		case 1: this_npc->player.key_input.down = true; break;
-		case 2: moved = false;
 		}
 		switch (random_direction(dre))
 		{
 		case 0: this_npc->player.key_input.left = true; break;
 		case 1: this_npc->player.key_input.right = true; break;
-		case 2: moved = false;
-		}
-		if (!moved) {
-			add_to_sector_list(npc_id);
-			break;
 		}
 
 		this_npc->player.key_check();
@@ -903,10 +905,31 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			return;
 		}
 		//cout << npc_id << " moving\n";
+		
+		if (new_view_list.find(this_npc->enemy_id) != new_view_list.end()) {
+			//cout << npc_id << " 적 발견\n";
+			reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
+			return;
+		}
+		uniform_int_distribution <int>random_action(0, 1);
+		if (random_action(dre) == 0) {
+			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+			return;
+		}
+		else {
+			reserve_timer(npc_id, EV_SLEEP, NPC_MOVE_TIME);
+			return;
+		}
+		return;
 	}
 	break;
 	case EV_ATTACK:
 	{
+		if (!attack_position(npc_id, this_npc->enemy_id)) {		//거리는 되는데 방향이 안맞을 경우
+			reserve_timer(npc_id, EV_DIRECTION, NPC_MOVE_TIME);
+			return;
+		}
+		//cout << npc_id << " attack\n";
 		unordered_set<int> attacker_view_list;
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(npc_id, list_of_sector);
@@ -928,13 +951,16 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			if (attack_position(npc_id, watcher)) {
 				hit = true;
 				objects[watcher].player.decrease_hp(50);
+				
+				//objects[watcher].enemy_id = npc_id;		//npc 끼리도 적 가능
 
 				if (objects[watcher].player.hp <= 0) {							//죽었을 때
+					if(this_npc->enemy_id == watcher)
+						this_npc->enemy_id = -1;
+					
 					dead = true;
 					int defender_level = objects[watcher].player.level;
 					this_npc->player.increase_exp(defender_level * 50);
-					this_npc->send_stat_packet();
-
 					disconnect(watcher);
 				}
 				objects[watcher].send_stat_packet();							//맞은놈 스탯
@@ -944,11 +970,19 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		for (auto& watcher : attacker_view_list) {
 			objects[watcher].send_attack_packet(npc_id, hit, dead);		//공격 모션
 		}
-		this_npc->send_attack_packet(npc_id, hit, dead);					//맞는 소리
+		
+		if (attacker_view_list.find(this_npc->enemy_id) != attacker_view_list.end()) {		//적이 있으면 계속 따라가기
+			//cout << npc_id << " 적 발견\n";
+			reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
+			return;
+		}
+		reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+		return;
 	}
 	break;
 	case EV_FOLLOW:
 	{
+		//cout << npc_id << " follow\n";
 		unordered_set<int> new_view_list;									//새로 업데이트 할 뷰 리스트
 		this_npc->view_list_mtx.lock();
 		unordered_set<int> old_view_list = this_npc->view_list;			//이전 뷰 리스트 복사
@@ -960,12 +994,15 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			return;
 		}
 		
-		this_npc->enemy_id = *old_view_list.begin();
+		//this_npc->enemy_id = *old_view_list.begin();
+		if (this_npc->enemy_id == -1) {					//적이 없다면
+			//this_npc->enemy_id = *old_view_list.begin();
+			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+			return;
+		}
 		TI my_position{ this_npc->player.position.x, this_npc->player.position.y };
 		TI enemy_position{ objects[this_npc->enemy_id].player.position.x, objects[this_npc->enemy_id].player.position.y };
 		
-		bool same_pos_x{ false };
-		bool same_pos_y{ false };
 		if (my_position.x > enemy_position.x) {
 			my_position.x -= enemy_position.x;
 			enemy_position.x = 0;
@@ -977,7 +1014,6 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		else {
 			my_position.x = 0;
 			enemy_position.x = 0;
-			same_pos_x = true;
 		}
 		
 		if (my_position.y > enemy_position.y) {
@@ -991,17 +1027,15 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		else {
 			my_position.y = 0;
 			enemy_position.y = 0;
-			same_pos_y = true;
-		}
-		if (same_pos_x && same_pos_y) {
-			//cout << npc_id << " 같은 위치\n";
-			break;
 		}
 		
 		TI diff = { abs(enemy_position.x - my_position.x) + 1, abs(enemy_position.y - my_position.y) + 1 };
+		if(diff.x + diff.y <= 3){		//공격범위에 들어오면 공격
+			//cout << npc_id << " 공격 범위\n";
+			reserve_timer(npc_id, EV_ATTACK, NPC_MOVE_TIME);
+			return;
+		}
 		TI next_position = turn_astar(my_position, enemy_position, diff);
-		//cout << "my_position: " << my_position.x << ", " << my_position.y << " enemy_position: " << enemy_position.x << ", " << enemy_position.y << " diff: " << diff.x << ", " << diff.y << endl;
-		//cout << "my_position: " << my_position.x << ", " << my_position.y << " next_pos: " << next_position.x << ", " << next_position.y << endl;
 
 		remove_from_sector_list(npc_id);
 		
@@ -1022,8 +1056,6 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			this_npc->player.key_input.right = true;
 		}
 		
-		//cout << "npc_id: " << npc_id << " up: " << this_npc->player.key_input.up << " down: " << this_npc->player.key_input.down << " left: " << this_npc->player.key_input.left << " right: " << this_npc->player.key_input.right << endl;
-
 		this_npc->player.key_check();
 		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 
@@ -1067,25 +1099,70 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			this_npc->is_active_npc = false;
 			return;
 		}
+
+		if (new_view_list.find(this_npc->enemy_id) != new_view_list.end()) {		//적이 있으면 계속 따라가기
+			//cout << npc_id << " 적 발견\n";
+			reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
+			return;
+		}
+		reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+		return;
 	}
 	case EV_SLEEP:
 	{
-		//cout << npc_id << " 잔다 NPC\n";
+		//cout << npc_id << " 쉰다 NPC\n";
+		uniform_int_distribution <int>random_action(0, 1);
+		if (random_action(dre) == 0) {
+			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+			return;
+		}
+		else {
+			reserve_timer(npc_id, EV_SLEEP, NPC_MOVE_TIME);
+			return;
+		}
+	}
+	case EV_DIRECTION:
+	{
+		if (this_npc->player.position.x > objects[this_npc->enemy_id].player.position.x) {
+			this_npc->player.ti_direction.x = -1;
+			this_npc->player.direction = DIR_LEFT;
+		}
+		else if (this_npc->player.position.x < objects[this_npc->enemy_id].player.position.x) {
+			this_npc->player.ti_direction.x = 1;
+			this_npc->player.direction = DIR_RIGHT;
+		}
+		else {
+			this_npc->player.ti_direction.x = 0;
+		}
+		if (this_npc->player.position.y > objects[this_npc->enemy_id].player.position.y) {
+			this_npc->player.ti_direction.y = -1;
+			this_npc->player.direction = DIR_UP;
+		}
+		else if (this_npc->player.position.y < objects[this_npc->enemy_id].player.position.y) {
+			this_npc->player.ti_direction.y = 1;
+			this_npc->player.direction = DIR_DOWN;
+		}
+		else {
+			this_npc->player.ti_direction.y = 0;
+		}
+		
+		this_npc->view_list_mtx.lock();
+		unordered_set<int> npc_view_list = this_npc->view_list;
+		this_npc->view_list_mtx.unlock();
+
+		for (auto& watched_id : npc_view_list) {
+			objects[watched_id].send_direction_packet(npc_id);
+		}
+		
+		//std::cout << this_npc->player.position.x << ", " << this_npc->player.position.y << " " << (int)this_npc->player.ti_direction.x << ", " << (int)this_npc->player.ti_direction.y << " enemy : " << objects[this_npc->enemy_id].player.position.x << ", " << objects[this_npc->enemy_id].player.position.y << "\n";
+		reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
+		return;
 	}
 	break;
 	}
 
-	uniform_int_distribution <int>random_action(1, 100);
-	int action = random_action(dre);
-	//cout << "action: " << action << endl;
-	if (action <= 10) 
-		reserve_timer(npc_id, EV_ATTACK, 1000);
-	else if (action <= 50)
-		reserve_timer(npc_id, EV_MOVE, 1000);
-	else if (action <= 90)
-		reserve_timer(npc_id, EV_FOLLOW, 1000);
-	else if (action <= 100)
-		reserve_timer(npc_id, EV_SLEEP, 1000);
+	cout << npc_id << " 이벤트 끝\n";
+	cout << event_type << endl;
 }
 
 void do_timer()
@@ -1130,9 +1207,6 @@ void do_timer()
 
 int main()
 {
-	TI next_position = turn_astar({0,0}, {9,9}, {10, 10});
-	cout << next_position.x << " " << next_position.y << endl;
-	
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
 	global_server_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);

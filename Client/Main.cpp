@@ -28,6 +28,4 @@ int main()
 			start = clock();
 		}
 	}
-	
-	return 0;
 }

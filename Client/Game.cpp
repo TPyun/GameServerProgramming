@@ -33,7 +33,7 @@ Game::Game()
 	}
 
 	char sound_file[100][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav", "dead.wav"};
-	for (int type = 0; type < 100; type++) {
+	for (int type = 0; type < 10; type++) {
 		char sounds_root[30] = "Sounds/";
 		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
 			cout << "Sound not loaded!" << endl;
@@ -144,7 +144,12 @@ void Game::timer()
 			else if (player.second.arr_position.y - player.second.curr_position.y > 0)
 				sign_y = 1;
 			
-			float delay = 1000.f / 250.f;
+			float delay;
+			if(player.first < MAX_USER)
+				delay = 1000.f / (float)PLAYER_MOVE_TIME;
+			else
+				delay = 1000.f / (float)NPC_MOVE_TIME;
+
 			float velocity = delay / (float)real_fps;
 			player.second.curr_position.x += (float)sign_x * velocity;
 			player.second.curr_position.y += (float)sign_y * velocity;
@@ -340,47 +345,19 @@ void Game::draw_game()
 			sfml_window->draw(sand_sprite);
 		}
 	}
-	
-	
-	//cout << sprite_pos_x << " " << sprite_pos_y << endl;
-	
-
-	//Ã¼½º ÆÇ
-	/*TI chess_board_pixel_size{ BLOCK_SIZE, BLOCK_SIZE };
-	TI chess_board_pixel_position;
-	for (int i = 0; i < CLIENT_RANGE; i++) {
-		for (int j = 0; j < CLIENT_RANGE; j++) {
-			chess_board_pixel_position.x = i * BLOCK_SIZE;
-			chess_board_pixel_position.y = j * BLOCK_SIZE;
-			sf::Color color(100, 50, 0);
-			
-			if (i == CLIENT_RANGE / 2 && j == CLIENT_RANGE / 2)
-				color = sf::Color(255, 255, 255);
-			else if (i == CLIENT_RANGE / 2 || j == CLIENT_RANGE / 2)
-				color = sf::Color(200, 100, 0);
-
-			draw_sfml_rect(chess_board_pixel_position, chess_board_pixel_size, color, color);
-		}
-	}*/
-	
-	// Sort the players by their Y position using qsort and a lambda function
-	std::vector<std::pair<int, Player>> sorted_players(players.begin(), players.end());
-	
-	qsort(sorted_players.data(), sorted_players.size(), sizeof(std::pair<int, Player>), [](const void* a, const void* b) {
-		const auto& player1 = *reinterpret_cast<const std::pair<int, Player>*>(a);
-		const auto& player2 = *reinterpret_cast<const std::pair<int, Player>*>(b);
-		return player1.second.arr_position.y - player2.second.arr_position.y;
-	});
 
 	// Draw the players in sorted order
-	for (const auto& player : sorted_players) {
-		draw_sprite(player.first, sf::Color::White, 3); // Walk
-		TI related_pos = get_relative_location(player.second.curr_position);
-		string name(player.second.name);
-		draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80}, name, sf::Color::White, 14);
+	for (int height = - VIEW_RANGE - 1; height <= VIEW_RANGE + 1; height++) {
+		for (const auto& player : players) {
+			if ((int)player_position.y + height != player.second.arr_position.y) continue;
+			draw_sprite(player.first, sf::Color::White, 3); // Walk
+			TI related_pos = get_relative_location(player.second.curr_position);
+			string name(player.second.name);
+			draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
 
-		if (player.second.chat_time) {		//draw chat
-			draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
+			if (player.second.chat_time) {		//draw chat
+				draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
+			}
 		}
 	}
 	
