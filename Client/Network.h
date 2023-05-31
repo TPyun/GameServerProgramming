@@ -60,10 +60,7 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
-	//패킷 잘리면 이어 붙이기
-	/*if (remain_data) {
-		cout << "remain_data: " << remain_data << endl;
-	}*/
+
 	int data_to_proccess = num_bytes + remain_data;
 	char* packet = recv_buffer;
 	while (data_to_proccess > 0) {
@@ -88,6 +85,7 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
+	
 	//cout << "Send: " << num_bytes << endl;
 }
 
@@ -196,9 +194,6 @@ void process_packet(char* packet)
 		else {
 			game->play_sound(SOUND_SWORD_ATTACK, false);
 		}
-
-		
-		
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
 	break;
@@ -304,10 +299,9 @@ DWORD __stdcall process(LPVOID arg)
 
 		int retval = WSAConnect(server_socket, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address), 0, 0, 0, 0);
 		if (retval == SOCKET_ERROR) {
-			cout << "Connection error" << endl;
+			game->connect_warning = true;
 			continue;
 		}
-		cout << "Connected to server" << endl;
 		game->connected = true;
 
 		CS_LOGIN_PACKET login_packet;

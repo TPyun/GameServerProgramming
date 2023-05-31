@@ -193,8 +193,14 @@ void Game::draw_main()
 	draw_sfml_text(TI{ 100, 330 }, (char*)Name, sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 430 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
 	
-	if(input_warning)
+	if (connect_warning) {
+		draw_sfml_text(TI{ 100, 500 }, (char*)"Connection Fail", sf::Color(180, 0, 0), 17);
+		input_warning = false;
+	}
+	if (input_warning) {
 		draw_sfml_text(TI{ 100, 500 }, (char*)"Please Fill All Fields", sf::Color(200, 0, 0), 17);
+		connect_warning = false;
+	}
 }
 
 void Game::main_handle_events()
@@ -283,6 +289,7 @@ void Game::initialize_main()
 	input_height = 130;
 	text_input = ip_address;
 	input_warning = false;
+	connect_warning = false;
 	scene = 0;
 }
 

@@ -395,8 +395,8 @@ TI randomly_spawn_player()
 
 bool in_eyesight(int p1, int p2)
 {
-	if (abs(objects[p1].player.position.x - objects[p2].player.position.x) > VIEW_RANGE) return false;
-	if (abs(objects[p1].player.position.y - objects[p2].player.position.y) > VIEW_RANGE) return false;
+	if (abs(objects[p1].player.position.x - objects[p2].player.position.x) >= VIEW_RANGE) return false;
+	if (abs(objects[p1].player.position.y - objects[p2].player.position.y) >= VIEW_RANGE) return false;
 	return true;
 }
 
@@ -849,16 +849,19 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 		remove_from_sector_list(npc_id);
 		
-		uniform_int_distribution <int>random_direction(0, 1);
+		uniform_int_distribution <int>random_direction(0, 2);
 		switch (random_direction(dre))
 		{
 		case 0: this_npc->player.key_input.up = true; break;
 		case 1: this_npc->player.key_input.down = true; break;
+		case 2: break;
 		}
+		
 		switch (random_direction(dre))
 		{
 		case 0: this_npc->player.key_input.left = true; break;
 		case 1: this_npc->player.key_input.right = true; break;
+		case 2: break;
 		}
 
 		this_npc->player.key_check();
@@ -1030,7 +1033,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		}
 		
 		TI diff = { abs(enemy_position.x - my_position.x) + 1, abs(enemy_position.y - my_position.y) + 1 };
-		if(diff.x + diff.y <= 3){		//공격범위에 들어오면 공격
+		if(diff.x + diff.y <= 3){		//가로나 세로 딱 붙어있는 위치
 			//cout << npc_id << " 공격 범위\n";
 			reserve_timer(npc_id, EV_ATTACK, NPC_MOVE_TIME);
 			return;
@@ -1195,9 +1198,10 @@ void do_timer()
 		over->event_type = event.type;
 		over->completion_type = OP_NPC;
 		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
-			
+		
+		//cout << event.object_id << " position : " << objects[event.object_id].player.position.x << ", " << objects[event.object_id].player.position.y << " event : " << event.type << endl;
 		/*++num_excuted_npc;
-		if (chrono::high_resolution_clock::now() - start_t > chrono::seconds(1)) {
+		if (chrono::high_resolution_clock::now() - start_t > chrono::milliseconds(NPC_MOVE_TIME)) {
 			cout << num_excuted_npc << "개의 NPC가 움직임\n";
 			num_excuted_npc = 0;
 			start_t = chrono::high_resolution_clock::now();

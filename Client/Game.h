@@ -51,6 +51,8 @@ public:
 	sf::SoundBuffer sound_buffer[100];
 	sf::Sound sounds[100];
 
+	bool connect_warning = false;
+
 private:
 	TI get_relative_location(TI);
 	TI get_relative_location(TF);
