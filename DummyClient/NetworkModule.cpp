@@ -126,15 +126,15 @@ void SendPacket(int cl, void* packet)
 
 void ProcessPacket(int ci, unsigned char packet[])
 {
-	switch (packet[1]) {
-	case P_SC_MOVE:
+	switch (packet[2]) {
+	case SC_MOVE_OBJECT:
 	{
-		SC_MOVE_PACKET* move_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		if (move_packet->client_id < MAX_CLIENTS) {
-			int my_id = client_map[move_packet->client_id];
+		SC_MOVE_OBJECT_PACKET* move_packet = reinterpret_cast<SC_MOVE_OBJECT_PACKET*>(packet);
+		if (move_packet->id < MAX_CLIENTS) {
+			int my_id = client_map[move_packet->id];
 			if (-1 != my_id) {
-				g_clients[my_id].x = move_packet->position.x;
-				g_clients[my_id].y = move_packet->position.y;
+				g_clients[my_id].x = move_packet->x;
+				g_clients[my_id].y = move_packet->y;
 			}
 			if (ci == my_id) {
 				if (0 != move_packet->time) {
@@ -147,39 +147,39 @@ void ProcessPacket(int ci, unsigned char packet[])
 		}
 		break;
 	}
-	case P_SC_OUT:
+	case SC_REMOVE_OBJECT:
 	{
 		break;
 	}
-	case P_SC_LOGIN_INFO:
+	case SC_LOGIN_INFO:
 	{
 		g_clients[ci].connected = true;
 		active_clients++;
 		SC_LOGIN_INFO_PACKET* login_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
 		int my_id = ci;
-		client_map[login_packet->client_id] = my_id;
-		g_clients[my_id].id = login_packet->client_id;
-		g_clients[my_id].x = login_packet->position.x;
-		g_clients[my_id].y = login_packet->position.y;
+		client_map[login_packet->id] = my_id;
+		g_clients[my_id].id = login_packet->id;
+		g_clients[my_id].x = login_packet->x;
+		g_clients[my_id].y = login_packet->y;
 		break;
 	}
-	case P_SC_CHAT: 
+	case SC_CHAT: 
 	{
 		break;
 	}
-	case P_SC_DIRECTION:
+	case SC_DIRECTION:
 	{
 		break;
 	}
-	case P_SC_ATTACK:
+	case SC_ATTACK:
 	{
 		break;
 	}
-	case P_SC_IN:
+	case SC_ADD_OBJECT:
 	{
 		break;
 	}
-	case P_SC_STAT_CHANGE:
+	case SC_STAT_CHANGE:
 	{
 		break;
 	}
@@ -311,7 +311,7 @@ void Adjust_Number_Of_Client()
 	SOCKADDR_IN ServerAddr;
 	ZeroMemory(&ServerAddr, sizeof(SOCKADDR_IN));
 	ServerAddr.sin_family = AF_INET;
-	ServerAddr.sin_port = htons(SERVER_PORT);
+	ServerAddr.sin_port = htons(PORT_NUM);
 	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	//ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
 
@@ -368,13 +368,8 @@ void Test_Thread()
 			if (g_clients[i].last_move_time + 1s > high_resolution_clock::now()) continue;
 			g_clients[i].last_move_time = high_resolution_clock::now();
 			CS_MOVE_PACKET my_packet;
-			switch (rand() % 4) {
-			case 0: my_packet.ks.up = true;  break;
-			case 1: my_packet.ks.down = true;  break;
-			case 2: my_packet.ks.left = true;  break;
-			case 3: my_packet.ks.right = true; break;
-			}
-			my_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+			my_packet.direction = rand() % 9;
+			my_packet.move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 			SendPacket(i, &my_packet);
 		}
 	}

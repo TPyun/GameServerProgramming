@@ -21,7 +21,6 @@ extern "C"
 using namespace std;
 using namespace chrono;
 
-//int*** sector_list;
 unordered_set<int>** sector_list;
 mutex** sector_mutex;
 
@@ -83,7 +82,7 @@ class SESSION {
 	
 public:
 	SOCKET socket;
-	int client_id;
+	int id;
 	unsigned int prev_move_time;
 	unsigned int prev_attack_time;
 	int	remain_data;
@@ -102,7 +101,7 @@ public:
 	SESSION() {
 		state = ST_FREE;
 		socket = 0;
-		client_id = -1;
+		id = -1;
 		prev_move_time = 0;
 		remain_data = 0;
 	}
@@ -119,7 +118,7 @@ public:
 			int err_no = WSAGetLastError();
 			if (WSA_IO_PENDING != err_no) {
 				//cout << "WSARecv Error : " << err_no << " Client: " << walker_id << endl;
-				disconnect(client_id);
+				disconnect(id);
 			}
 		}
 	}
@@ -132,7 +131,7 @@ public:
 			if (WSA_IO_PENDING != err_no) {
 				//cout << "WSASend Error : " << err_no << " Client: " << walker_id << endl;
 				delete send_over;
-				disconnect(client_id);
+				disconnect(id);
 			}
 		}
 	}
@@ -158,7 +157,7 @@ bool is_npc(int id)
 
 void SESSION::send_login_info_packet()
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 	
 	player_count.fetch_add(1);
@@ -180,9 +179,9 @@ void SESSION::send_login_info_packet()
 	player.exp = 0;
 	
 	SC_LOGIN_INFO_PACKET packet;
-	packet.client_id = client_id;
-	memcpy(&packet.name, &player.name, sizeof(packet.name));
-	packet.position = player.position;
+	packet.id = id;
+	packet.x = player.position.x;
+	packet.y = player.position.y;
 	packet.hp = player.hp;
 	packet.max_hp = player.max_hp;
 	packet.level = player.level;
@@ -192,34 +191,35 @@ void SESSION::send_login_info_packet()
 
 void SESSION::send_move_packet(int walker_id)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 	
-	SC_MOVE_PACKET packet;
-	packet.client_id = walker_id;
-	packet.position = objects[walker_id].player.position;
+	SC_MOVE_OBJECT_PACKET packet;
+	packet.id = walker_id;
+	packet.x = objects[walker_id].player.position.x;
+	packet.y = objects[walker_id].player.position.y;
 	packet.time = objects[walker_id].prev_move_time;
 	do_send(&packet);
 }
 
 void SESSION::send_direction_packet(int watcher_id)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 	
 	SC_DIRECTION_PACKET packet;
-	packet.client_id = watcher_id;
+	packet.id = watcher_id;
 	packet.direction = objects[watcher_id].player.direction;
 	do_send(&packet);
 }
 
 void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 	
 	SC_ATTACK_PACKET packet;
-	packet.client_id = attacker_id;
+	packet.id = attacker_id;
 	packet.hit = hit;
 	packet.dead = dead;
 	do_send(&packet);
@@ -227,40 +227,41 @@ void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead)
 
 void SESSION::send_in_packet(int entered_client_id)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 
-	SC_IN_PACKET packet;
-	packet.client_id = entered_client_id;
-	packet.position = objects[entered_client_id].player.position;
+	SC_ADD_OBJECT_PACKET packet;
+	packet.id = entered_client_id;
+	packet.x = objects[entered_client_id].player.position.x;
+	packet.y = objects[entered_client_id].player.position.y;
 	memcpy(&packet.name, &objects[entered_client_id].player.name, sizeof(packet.name));
 	do_send(&packet);
 }
 
 void SESSION::send_out_packet(int left_one_id)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 	
-	SC_OUT_PACKET packet;
-	packet.client_id = left_one_id;
+	SC_REMOVE_OBJECT_PACKET packet;
+	packet.id = left_one_id;
 	do_send(&packet);
 }
 
 void SESSION::send_chat_packet(int talker_id, const char* message)
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 
 	SC_CHAT_PACKET packet;
-	packet.client_id = talker_id;
-	strcpy_s(packet.message, message);
+	packet.id = talker_id;
+	strcpy_s(packet.mess, message);
 	do_send(&packet);
 }
 
 void SESSION::send_stat_packet()
 {
-	if (is_npc(this->client_id))
+	if (is_npc(this->id))
 		return;
 
 	SC_STAT_CHANGE_PACKET packet;
@@ -354,34 +355,34 @@ void show_all_sector_list()
 	cout << "total: " << total << endl;
 }
 
-void disconnect(int client_id)
+void disconnect(int id)
 {
 	{
-		lock_guard<mutex> m{ objects[client_id].state_mtx };
-		if (objects[client_id].state == ST_FREE) return;
-		else objects[client_id].state = ST_FREE;
+		lock_guard<mutex> m{ objects[id].state_mtx };
+		if (objects[id].state == ST_FREE) return;
+		else objects[id].state = ST_FREE;
 	}
 
-	objects[client_id].view_list_mtx.lock();
-	unordered_set<int> view_list = objects[client_id].view_list;
-	objects[client_id].view_list_mtx.unlock();
+	objects[id].view_list_mtx.lock();
+	unordered_set<int> view_list = objects[id].view_list;
+	objects[id].view_list_mtx.unlock();
 
 	for (auto& client_in_view : view_list) {
-		objects[client_in_view].send_out_packet(client_id);
-		objects[client_in_view].erase_view_list(client_id);
+		objects[client_in_view].send_out_packet(id);
+		objects[client_in_view].erase_view_list(id);
 	}
 
-	remove_from_sector_list(client_id);
+	remove_from_sector_list(id);
 
-	if (is_npc(client_id)) {
-		objects[client_id].is_active_npc = false;
+	if (is_npc(id)) {
+		objects[id].is_active_npc = false;
 		return;
 	}
-	closesocket(objects[client_id].socket);
+	closesocket(objects[id].socket);
 
 	player_count.fetch_sub(1);
 	if (player_count.load() < 50) {
-		cout << player_count.load() << " Clients Remain. Client id: " << client_id << endl;
+		cout << player_count.load() << " Clients Remain. Client id: " << id << endl;
 	}
 }
 
@@ -389,7 +390,7 @@ TI randomly_spawn_player()
 {
 	random_device rd;
 	default_random_engine dre(rd());
-	uniform_int_distribution <int>spawn_location(0, MAP_SIZE);
+	uniform_int_distribution <int>spawn_location(0, W_WIDTH);
 	return TI { spawn_location(dre), spawn_location(dre) };
 }
 
@@ -405,7 +406,7 @@ bool attack_position(int attacker, int defender)
 	if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y) { 
 		return true;
 	}
-	if (objects[attacker].player.position.x + objects[attacker].player.ti_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.ti_direction.y == objects[defender].player.position.y) {
+	if (objects[attacker].player.position.x + objects[attacker].player.tc_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.tc_direction.y == objects[defender].player.position.y) {
 		return true;
 	}
 	return false;
@@ -438,39 +439,39 @@ void wake_up_npc(int npc_id)
 	reserve_timer(npc_id, EV_MOVE, 500);
 }
 
-void npc_talk(int npc_id, int client_id)
+void npc_talk(int npc_id, int id)
 {
-	/*if (objects[npc_id].player.position.x != objects[client_id].player.position.x || objects[npc_id].player.position.y != objects[client_id].player.position.y)
+	/*if (objects[npc_id].player.position.x != objects[id].player.position.x || objects[npc_id].player.position.y != objects[id].player.position.y)
 		return;*/
 	/*objects[npc_id].lua_mtx.lock();
 	auto L = objects[npc_id].lua;
 	lua_getglobal(L, "event_player_move");
-	lua_pushnumber(L, client_id);
+	lua_pushnumber(L, id);
 	lua_pcall(L, 1, 0, 0);
 	lua_pop(L, 1);
 	objects[npc_id].lua_mtx.unlock();*/
 }
 
-void process_packet(int client_id, char* packet)
+void process_packet(int id, char* packet)
 {
-	switch (packet[1]) {
-	case P_CS_MOVE:
+	switch (packet[2]) {
+	case CS_MOVE:
 	{
-		SESSION* moved_client = &objects[client_id];
+		SESSION* moved_client = &objects[id];
 		CS_MOVE_PACKET* recv_packet = reinterpret_cast<CS_MOVE_PACKET*>(packet);
-
-		if (moved_client->prev_move_time + 250 > recv_packet->time) return;		//1초 지나야 움직일 수 있음
-
-		remove_from_sector_list(client_id);
 		
-		memcpy(&moved_client->player.key_input, &recv_packet->ks, sizeof(recv_packet->ks));
+		if (moved_client->prev_move_time + 250 > recv_packet->move_time) return;		//1초 지나야 움직일 수 있음
+
+		remove_from_sector_list(id);
+		
+		moved_client->player.key_input = recv_packet->direction;
 		moved_client->player.key_check();
-		moved_client->prev_move_time = recv_packet->time;
-		moved_client->send_move_packet(client_id);								//본인 움직임 보냄
+		moved_client->prev_move_time = recv_packet->move_time;
+		moved_client->send_move_packet(id);								//본인 움직임 보냄
 		
-		add_to_sector_list(client_id);
+		add_to_sector_list(id);
 		unordered_set<int> list_of_sector;
-		get_from_sector_list(client_id, list_of_sector);						//본인이 보는 섹터에 있는 클라이언트들을 불러옴
+		get_from_sector_list(id, list_of_sector);						//본인이 보는 섹터에 있는 클라이언트들을 불러옴
 
 		unordered_set<int> new_view_list;										//새로 업데이트 할 뷰 리스트
 		moved_client->view_list_mtx.lock();
@@ -479,22 +480,22 @@ void process_packet(int client_id, char* packet)
 
 		for (auto& client_in_sector : list_of_sector) {
 			{
-				lock_guard<mutex> m(objects[client_id].state_mtx);
+				lock_guard<mutex> m(objects[id].state_mtx);
 				if (objects[client_in_sector].state != ST_INGAME) continue;
 			}
-			if (objects[client_in_sector].client_id == client_id) continue;
-			if (in_eyesight(client_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
+			if (objects[client_in_sector].id == id) continue;
+			if (in_eyesight(id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기
 			}
 		}
 		
 		for (auto& new_one : new_view_list) {
 			if (old_view_list.count(new_one) == 0) {							//새로 시야에 들어온 플레이어
-				objects[new_one].insert_view_list(client_id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
+				objects[new_one].insert_view_list(id);			//시야에 들어온 플레이어의 뷰 리스트에 움직인 플레이어 추가
 				moved_client->send_in_packet(new_one);
-				objects[new_one].send_in_packet(client_id);
+				objects[new_one].send_in_packet(id);
 
-				objects[new_one].send_direction_packet(client_id);
+				objects[new_one].send_direction_packet(id);
 				moved_client->send_direction_packet(new_one);
 				
 				if (is_npc(new_one)) {									//NPC라면 깨우기
@@ -502,18 +503,18 @@ void process_packet(int client_id, char* packet)
 				}
 			}
 			else
-				objects[new_one].send_move_packet(client_id);						//기존에 있었으면 무브
+				objects[new_one].send_move_packet(id);						//기존에 있었으면 무브
 
 			if (is_npc(new_one)) {
-				npc_talk(new_one, client_id);
+				npc_talk(new_one, id);
 			}
 		}
 		for (auto& old_one : old_view_list) {
 			if (new_view_list.count(old_one) == 0) {								//시야에서 사라진 플레이어
-				objects[old_one].erase_view_list(client_id);					//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
+				objects[old_one].erase_view_list(id);					//시야에서 사라진 플레이어의 뷰 리스트에서 움직인 플레이어 삭제
 				
 				moved_client->send_out_packet(old_one);							//움직인 플레이어한테 목록에서 사라진 플레이어 삭제 패킷 보냄
-				objects[old_one].send_out_packet(client_id);							//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
+				objects[old_one].send_out_packet(id);							//시야에서 사라진 플레이어에게 움직인 플레이어 삭제 패킷 보냄
 			}
 		}
 		moved_client->view_list_mtx.lock();
@@ -521,17 +522,17 @@ void process_packet(int client_id, char* packet)
 		moved_client->view_list_mtx.unlock();
 	}
 	break;
-	case P_CS_DIRECTION:
+	case CS_DIRECTION:
 	{
-		SESSION* watcher = &objects[client_id];
+		SESSION* watcher = &objects[id];
 		CS_DIRECTION_PACKET* recv_packet = reinterpret_cast<CS_DIRECTION_PACKET*>(packet);
 
 		watcher->player.direction = recv_packet->direction;
 		switch (watcher->player.direction) {
-		case DIR_UP: watcher->player.ti_direction = { 0, -1 }; break;
-		case DIR_DOWN: watcher->player.ti_direction = { 0, 1 }; break;
-		case DIR_LEFT: watcher->player.ti_direction = { -1, 0 }; break;
-		case DIR_RIGHT: watcher->player.ti_direction = { 1, 0 }; break;
+		case DIR_UP: watcher->player.tc_direction = { 0, -1 }; break;
+		case DIR_DOWN: watcher->player.tc_direction = { 0, 1 }; break;
+		case DIR_LEFT: watcher->player.tc_direction = { -1, 0 }; break;
+		case DIR_RIGHT: watcher->player.tc_direction = { 1, 0 }; break;
 		}
 		
 		watcher->view_list_mtx.lock();
@@ -539,29 +540,29 @@ void process_packet(int client_id, char* packet)
 		watcher->view_list_mtx.unlock();
 
 		for (auto& watched_id : watcher_view_list) {
-			objects[watched_id].send_direction_packet(client_id);
+			objects[watched_id].send_direction_packet(id);
 		}
 	}
 	break;
-	case P_CS_ATTACK:
+	case CS_ATTACK:
 	{
-		SESSION* attacker = &objects[client_id];
+		SESSION* attacker = &objects[id];
 		CS_ATTACK_PACKET* recv_packet = reinterpret_cast<CS_ATTACK_PACKET*>(packet);
 		
 		if (attacker->prev_attack_time + 500 > recv_packet->time) return;
 		attacker->prev_attack_time = recv_packet->time;
-		//cout << attacker->client_id << " attack" << endl;
+		//cout << attacker->id << " attack" << endl;
 
 		unordered_set<int> attacker_view_list;
 		unordered_set<int> list_of_sector;
-		get_from_sector_list(client_id, list_of_sector);
+		get_from_sector_list(id, list_of_sector);
 		for (auto& client_in_sector : list_of_sector) {
 			{
-				lock_guard<mutex> m(objects[client_id].state_mtx);
+				lock_guard<mutex> m(objects[id].state_mtx);
 				if (objects[client_in_sector].state != ST_INGAME) continue;
 			}
-			if (client_in_sector == client_id) continue;
-			if (in_eyesight(client_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
+			if (client_in_sector == id) continue;
+			if (in_eyesight(id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				attacker_view_list.insert(client_in_sector);								//new list 채우기
 			}
 		}
@@ -570,12 +571,12 @@ void process_packet(int client_id, char* packet)
 		bool hit = false;
 		bool dead = false;
 		for (auto& watcher : attacker_view_list) {
-			if (attack_position(client_id, watcher)) {
+			if (attack_position(id, watcher)) {
 				hit = true;
 				objects[watcher].player.decrease_hp(50);
 
 				if (is_npc(watcher)) {
-					objects[watcher].enemy_id = client_id;
+					objects[watcher].enemy_id = id;
 				}
 
 				if (objects[watcher].player.hp <= 0) {							//죽었을 때
@@ -591,53 +592,53 @@ void process_packet(int client_id, char* packet)
 		}
 
 		for (auto& watcher : attacker_view_list) {
-			objects[watcher].send_attack_packet(client_id, hit, dead);		//공격 모션
+			objects[watcher].send_attack_packet(id, hit, dead);		//공격 모션
 		}
-		attacker->send_attack_packet(client_id, hit, dead);					//맞는 소리
+		attacker->send_attack_packet(id, hit, dead);					//맞는 소리
 	}
 	break;
-	case P_CS_LOGIN:
+	case CS_LOGIN:
 	{
-		SESSION* new_client = &objects[client_id];
+		SESSION* new_client = &objects[id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 
 		memcpy(new_client->player.name, recv_packet->name, sizeof(new_client->player.name));
 
 		new_client->send_login_info_packet();										//새로온 애한테 로그인 됐다고 전송
 		{
-			lock_guard<mutex> m{ objects[client_id].state_mtx };
-			objects[client_id].state = ST_INGAME;
+			lock_guard<mutex> m{ objects[id].state_mtx };
+			objects[id].state = ST_INGAME;
 		}
 
 		for (auto& old_client : objects) {
 			{
-				lock_guard<mutex> m(objects[client_id].state_mtx);
+				lock_guard<mutex> m(objects[id].state_mtx);
 				if (old_client.state != ST_INGAME) continue;
 			}
-			if (client_id == old_client.client_id) continue;
+			if (id == old_client.id) continue;
 
-			if (in_eyesight(client_id, old_client.client_id)) {
-				add_to_sector_list(client_id);
+			if (in_eyesight(id, old_client.id)) {
+				add_to_sector_list(id);
 				
-				old_client.insert_view_list(client_id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
-				new_client->insert_view_list(old_client.client_id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
+				old_client.insert_view_list(id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
+				new_client->insert_view_list(old_client.id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
 				
-				new_client->send_in_packet(old_client.client_id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
-				old_client.send_in_packet(client_id);							//시야 안에 클라한테 새로온 애 위치 전송.
+				new_client->send_in_packet(old_client.id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
+				old_client.send_in_packet(id);							//시야 안에 클라한테 새로온 애 위치 전송.
 				
-				new_client->send_direction_packet(old_client.client_id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
-				old_client.send_direction_packet(client_id);						//시야 안에 클라한테 새로온 애 방향 전송.
+				new_client->send_direction_packet(old_client.id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
+				old_client.send_direction_packet(id);						//시야 안에 클라한테 새로온 애 방향 전송.
 				
-				if (is_npc(old_client.client_id)) {							//NPC라면 깨우기
-					wake_up_npc(old_client.client_id);
+				if (is_npc(old_client.id)) {							//NPC라면 깨우기
+					wake_up_npc(old_client.id);
 				}
 			}
 		}
 	}
 	break;
-	case P_CS_CHAT:
+	case CS_CHAT:
 	{
-		SESSION* mumbling_client = &objects[client_id];
+		SESSION* mumbling_client = &objects[id];
 		CS_CHAT_PACKET* recv_packet = reinterpret_cast<CS_CHAT_PACKET*>(packet);
 		
 		mumbling_client->view_list_mtx.lock();
@@ -645,9 +646,9 @@ void process_packet(int client_id, char* packet)
 		mumbling_client->view_list_mtx.unlock();
 		
 		for (auto& hearing_client : mumbling_view_list) {
-			objects[hearing_client].send_chat_packet(client_id, recv_packet->message);
+			objects[hearing_client].send_chat_packet(id, recv_packet->mess);
 		}
-		cout << "client " << client_id << " : " << recv_packet->message << endl;
+		cout << "client " << id << " : " << recv_packet->mess << endl;
 	}
 	break;
 	default: cout << "Unknown Packet Type" << endl; break;
@@ -714,21 +715,21 @@ void work_thread()
 		}
 		case OP_ACCEPT: 
 		{
-			int client_id = get_new_client_id();
-			if (client_id != -1) {
+			int id = get_new_client_id();
+			if (id != -1) {
 				{
-					lock_guard<mutex> m(objects[client_id].state_mtx);
-					objects[client_id].state = ST_ALLOC;
+					lock_guard<mutex> m(objects[id].state_mtx);
+					objects[id].state = ST_ALLOC;
 				}
-				objects[client_id].client_id = client_id;
-				objects[client_id].socket = global_client_socket;
-				objects[client_id].remain_data = 0;
-				objects[client_id].view_list_mtx.lock();
-				objects[client_id].view_list.clear();
-				objects[client_id].view_list_mtx.unlock();
+				objects[id].id = id;
+				objects[id].socket = global_client_socket;
+				objects[id].remain_data = 0;
+				objects[id].view_list_mtx.lock();
+				objects[id].view_list.clear();
+				objects[id].view_list_mtx.unlock();
 
-				CreateIoCompletionPort(reinterpret_cast<HANDLE>(global_client_socket), h_iocp, client_id, 0);
-				objects[client_id].do_recv();
+				CreateIoCompletionPort(reinterpret_cast<HANDLE>(global_client_socket), h_iocp, id, 0);
+				objects[id].do_recv();
 				global_client_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 			}
 			else {
@@ -788,14 +789,13 @@ void spawn_npc()
 	
 	auto start_t = chrono::system_clock::now();
 	for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {
-		objects[npc_id].client_id = npc_id;
+		objects[npc_id].id = npc_id;
 		objects[npc_id].view_list.clear();
 		objects[npc_id].state = ST_INGAME;
 		objects[npc_id].player.position = randomly_spawn_player();
 		objects[npc_id].player.personality = static_cast<PERSONALITY>(random_personality(dre));
 		objects[npc_id].enemy_id = -1;
 		sprintf_s(objects[npc_id].player.name, "NPC %d", npc_id);
-		
 		add_to_sector_list(npc_id);
 		
 		//auto L = objects[npc_id].lua = luaL_newstate();
@@ -849,20 +849,8 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 		remove_from_sector_list(npc_id);
 		
-		uniform_int_distribution <int>random_direction(0, 2);
-		switch (random_direction(dre))
-		{
-		case 0: this_npc->player.key_input.up = true; break;
-		case 1: this_npc->player.key_input.down = true; break;
-		case 2: break;
-		}
-		
-		switch (random_direction(dre))
-		{
-		case 0: this_npc->player.key_input.left = true; break;
-		case 1: this_npc->player.key_input.right = true; break;
-		case 2: break;
-		}
+		uniform_int_distribution <int>random_direction(1, 8);
+		this_npc->player.key_input = random_direction(dre);
 
 		this_npc->player.key_check();
 		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
@@ -877,7 +865,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 				lock_guard<mutex> m(objects[npc_id].state_mtx);
 				if (objects[client_in_sector].state != ST_INGAME) continue;
 			}
-			if (objects[client_in_sector].client_id == npc_id) continue;
+			if (objects[client_in_sector].id == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기
 			}
@@ -1043,23 +1031,19 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		remove_from_sector_list(npc_id);
 		
 		if (my_position.y > next_position.y) {
-			this_npc->player.direction = DIR_UP;
-			this_npc->player.key_input.up = true;
+			this_npc->player.tc_direction.y = -1;
 		}
 		if (my_position.y < next_position.y) {
-			this_npc->player.direction = DIR_DOWN;
-			this_npc->player.key_input.down = true;
+			this_npc->player.tc_direction.y = 1;
 		}
 		if (my_position.x > next_position.x) {
-			this_npc->player.direction = DIR_LEFT;
-			this_npc->player.key_input.left = true; 
+			this_npc->player.tc_direction.x = -1;
 		}
 		if (my_position.x < next_position.x) {
-			this_npc->player.direction = DIR_RIGHT;
-			this_npc->player.key_input.right = true;
+			this_npc->player.tc_direction.x = 1;
 		}
 		
-		this_npc->player.key_check();
+		this_npc->player.dir_check();
 		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 
 		add_to_sector_list(npc_id);
@@ -1072,7 +1056,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 				lock_guard<mutex> m(objects[npc_id].state_mtx);
 				if (objects[client_in_sector].state != ST_INGAME) continue;
 			}
-			if (objects[client_in_sector].client_id == npc_id) continue;
+			if (objects[client_in_sector].id == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기
 			}
@@ -1127,26 +1111,26 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 	case EV_DIRECTION:
 	{
 		if (this_npc->player.position.x > objects[this_npc->enemy_id].player.position.x) {
-			this_npc->player.ti_direction.x = -1;
+			this_npc->player.tc_direction.x = -1;
 			this_npc->player.direction = DIR_LEFT;
 		}
 		else if (this_npc->player.position.x < objects[this_npc->enemy_id].player.position.x) {
-			this_npc->player.ti_direction.x = 1;
+			this_npc->player.tc_direction.x = 1;
 			this_npc->player.direction = DIR_RIGHT;
 		}
 		else {
-			this_npc->player.ti_direction.x = 0;
+			this_npc->player.tc_direction.x = 0;
 		}
 		if (this_npc->player.position.y > objects[this_npc->enemy_id].player.position.y) {
-			this_npc->player.ti_direction.y = -1;
+			this_npc->player.tc_direction.y = -1;
 			this_npc->player.direction = DIR_UP;
 		}
 		else if (this_npc->player.position.y < objects[this_npc->enemy_id].player.position.y) {
-			this_npc->player.ti_direction.y = 1;
+			this_npc->player.tc_direction.y = 1;
 			this_npc->player.direction = DIR_DOWN;
 		}
 		else {
-			this_npc->player.ti_direction.y = 0;
+			this_npc->player.tc_direction.y = 0;
 		}
 		
 		this_npc->view_list_mtx.lock();
@@ -1157,7 +1141,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			objects[watched_id].send_direction_packet(npc_id);
 		}
 		
-		//std::cout << this_npc->player.position.x << ", " << this_npc->player.position.y << " " << (int)this_npc->player.ti_direction.x << ", " << (int)this_npc->player.ti_direction.y << " enemy : " << objects[this_npc->enemy_id].player.position.x << ", " << objects[this_npc->enemy_id].player.position.y << "\n";
+		//std::cout << this_npc->player.position.x << ", " << this_npc->player.position.y << " " << (int)this_npc->player.tc_direction.x << ", " << (int)this_npc->player.tc_direction.y << " enemy : " << objects[this_npc->enemy_id].player.position.x << ", " << objects[this_npc->enemy_id].player.position.y << "\n";
 		reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
 		return;
 	}
@@ -1218,7 +1202,7 @@ int main()
 	ZeroMemory(&server_addr, sizeof(server_addr));
 
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(SERVER_PORT);
+	server_addr.sin_port = htons(PORT_NUM);
 	server_addr.sin_addr.S_un.S_addr = INADDR_ANY;
 
 	bind(global_server_socket, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr));

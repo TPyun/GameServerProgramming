@@ -10,10 +10,10 @@ enum PERSONALITY {
 class Player
 {
 public:
-	KS key_input;
+	char key_input;
 	TI position{ 0, 0 };
-	Direction direction = DIR_DOWN;
-	TC ti_direction{ 0, 0 };
+	char direction = DIR_DOWN;
+	TC tc_direction{ 0, 0 };
 	char name[30]{};
 	int	hp{ 100 };
 	int	max_hp{ 100 };
@@ -25,6 +25,7 @@ public:
 	~Player();
 	void move(TC);
 	void key_check();
+	void dir_check();
 	void increase_hp(int amount);
 	bool decrease_hp(int amount);
 	void increase_exp(int amount);

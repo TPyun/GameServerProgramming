@@ -13,7 +13,7 @@ public:
 	TI arr_position{ -500, -500 };
 	
 
-	Direction direction = DIR_DOWN;
+	char direction = DIR_DOWN;
 	State state = ST_IDLE;
 	unsigned char sprite_iter{ (unsigned char)(rand() % 255) };
 	unsigned int sprite_time{};

@@ -26,7 +26,7 @@ public:
 	void stop_sound(char);
 
 	//ingame scene
-	KS key_input{ false, false, false, false };
+	FB key_input{ false, false, false, false };
 	std::unordered_map <int, Player> players;
 	std::mutex players_mtx;
 
@@ -41,7 +41,7 @@ public:
 	int my_id = -1;
 	int ping = 0;
 	char scene = 0;
-	char chat_message[MAX_CHAT] = "";
+	char chat_message[CHAT_SIZE] = "";
 	
 	bool move_flag = false;
 	bool direction_flag = false;

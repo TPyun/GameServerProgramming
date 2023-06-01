@@ -12,7 +12,7 @@ Player::~Player()
 
 void Player::move(TC direction)
 {
-	if (position.x + direction.x < 0 || position.x + direction.x >= MAP_SIZE || position.y + direction.y < 0 || position.y + direction.y >= MAP_SIZE) {
+	if (position.x + direction.x < 0 || position.x + direction.x >= W_WIDTH || position.y + direction.y < 0 || position.y + direction.y >= W_WIDTH) {
 		return;
 	}
 	position.x += direction.x;
@@ -21,31 +21,63 @@ void Player::move(TC direction)
 
 void Player::key_check()
 {
-	bool direction_changed = false;
-	if (key_input.up){
-		ti_direction = TC{ 0, -1 };
-		move(ti_direction);
+	switch (key_input) {
+	case KEY_UP:
+		tc_direction = { 0, -1 };
 		direction = DIR_UP;
-		key_input.up = false;
-	}
-	if (key_input.down){
-		ti_direction = TC{ 0, 1 };
-		move(ti_direction);
+		break;
+	case KEY_DOWN:
+		tc_direction = { 0, 1 };
 		direction = DIR_DOWN;
-		key_input.down = false;
-	}
-	if (key_input.left){
-		ti_direction = TC{ -1, 0 };
-		move(ti_direction);
+		break;
+	case KEY_LEFT:
+		tc_direction = { -1, 0 };
 		direction = DIR_LEFT;
-		key_input.left = false;
-	}
-	if (key_input.right){
-		ti_direction = TC{ 1, 0 };
-		move(ti_direction);
+		break;
+	case KEY_RIGHT:
+		tc_direction = { 1, 0 };
 		direction = DIR_RIGHT;
-		key_input.right = false;
+		break;
+	case KEY_UP_LEFT:
+		tc_direction = { -1, -1 };
+		direction = DIR_LEFT;
+		break;
+	case KEY_UP_RIGHT:
+		tc_direction = { 1, -1 };
+		direction = DIR_RIGHT;
+		break;
+	case KEY_DOWN_LEFT:
+		tc_direction = { -1, 1 };
+		direction = DIR_LEFT;
+		break;
+	case KEY_DOWN_RIGHT:
+		tc_direction = { 1, 1 };
+		direction = DIR_RIGHT;
+		break;
 	}
+	move(tc_direction);
+	key_input = KEY_NONE;
+}
+
+void Player::dir_check()
+{
+	switch (tc_direction.y) {
+	case -1:
+		direction = DIR_UP;
+		break;
+	case 1:
+		direction = DIR_DOWN;
+		break;
+	}
+	switch (tc_direction.x) {
+	case -1:
+		direction = DIR_LEFT;
+		break;
+	case 1:
+		direction = DIR_RIGHT;
+		break;
+	}
+	move(tc_direction);
 }
 
 void Player::increase_hp(int amount)

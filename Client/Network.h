@@ -21,19 +21,19 @@ void process_packet(char* packet);
 
 void send(char* packet)
 {
-	if (!game->connected) return;
-	//cout << "send" << endl;
+if (!game->connected) return;
+//cout << "send" << endl;
 
-	send_wsa_buffer.buf = packet;
-	send_wsa_buffer.len = packet[0];
-	
-	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &send_over, send_callback);
-	//Send Error Handling
-	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING){
-		cout << "WSASend failed with error: " << WSAGetLastError() << endl;
-		game->connected = false;
-		return;
-	}
+send_wsa_buffer.buf = packet;
+send_wsa_buffer.len = packet[0];
+
+int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &send_over, send_callback);
+//Send Error Handling
+if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+	cout << "WSASend failed with error: " << WSAGetLastError() << endl;
+	game->connected = false;
+	return;
+}
 }
 
 void recv()
@@ -85,17 +85,51 @@ void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		game->connected = false;
 		return;
 	}
-	
+
 	//cout << "Send: " << num_bytes << endl;
 }
 
 void send_move_packet()
 {
+	unsigned int current_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+	if (game->players[game->my_id].moved_time + PLAYER_MOVE_TIME > current_time) {
+		//cout << game->players[game->my_id].moved_time + PLAYER_MOVE_TIME << " " << current_time << endl;
+		return;
+	}
+
 	CS_MOVE_PACKET move_packet;
-	move_packet.ks = game->key_input;
-	move_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
-	send((char*)&move_packet);
-	//cout << game->key_input.up << " " << game->key_input.down << " " << game->key_input.left << " " << game->key_input.right << endl;
+	bool moved = false;
+	if (!game->key_input.left || !game->key_input.right) {
+		if (game->key_input.left) {
+			move_packet.direction = KEY_LEFT;
+		}
+		if (game->key_input.right) {
+			move_packet.direction = KEY_RIGHT;
+		}
+		moved = true;
+	}
+	if (!game->key_input.up || !game->key_input.down) {
+		if (game->key_input.up) {
+			move_packet.direction = KEY_UP;
+			if (game->key_input.left)
+				move_packet.direction = KEY_UP_LEFT;
+			else if (game->key_input.right)
+				move_packet.direction = KEY_UP_RIGHT;
+		}
+		if (game->key_input.down) {
+			move_packet.direction = KEY_DOWN;
+			if (game->key_input.left)
+				move_packet.direction = KEY_DOWN_LEFT;
+			else if (game->key_input.right)
+				move_packet.direction = KEY_DOWN_RIGHT;
+		}
+		moved = true;
+	}
+	if (moved) {
+		move_packet.move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+		send((char*)&move_packet);
+	}
+	cout << game->key_input.up << ", " << game->key_input.down << ", " << game->key_input.left << ", " << game->key_input.right << endl;
 }
 
 void send_direction_packet()
@@ -117,7 +151,7 @@ void send_attack_packet()
 void send_chat_packet()
 {
 	CS_CHAT_PACKET chat_packet;
-	memcpy(chat_packet.message, game->chat_message, MAX_CHAT);
+	memcpy(chat_packet.mess, game->chat_message, CHAT_SIZE);
 	send((char*)&chat_packet);
 	game->chat_flag = false;
 
@@ -132,42 +166,43 @@ void send_chat_packet()
 
 void process_packet(char* packet)
 {
-	switch (packet[1]) {
-	case P_SC_MOVE:
+	switch (packet[2]) {
+	case SC_MOVE_OBJECT:
 	{
-		SC_MOVE_PACKET* recv_packet = reinterpret_cast<SC_MOVE_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
+		SC_MOVE_OBJECT_PACKET* recv_packet = reinterpret_cast<SC_MOVE_OBJECT_PACKET*>(packet);
+		int client_id = recv_packet->id;
 		
 		game->players_mtx.lock();
-		if(game->players[client_id].arr_position.x < recv_packet->position.x){
+		if(game->players[client_id].arr_position.x < recv_packet->x){
 			game->players[client_id].direction = DIR_RIGHT;
 		}
-		else if (game->players[client_id].arr_position.x > recv_packet->position.x){
+		else if (game->players[client_id].arr_position.x > recv_packet->x){
 			game->players[client_id].direction = DIR_LEFT;
 		}
-		else if (game->players[client_id].arr_position.y > recv_packet->position.y){
+		else if (game->players[client_id].arr_position.y > recv_packet->y){
 			game->players[client_id].direction = DIR_UP;
 		}
-		else if (game->players[client_id].arr_position.y < recv_packet->position.y) {
+		else if (game->players[client_id].arr_position.y < recv_packet->y) {
 			game->players[client_id].direction = DIR_DOWN;
 		}
 		
 		game->players[client_id].state = ST_MOVE;
 		game->players[client_id].id = client_id;
-		game->players[client_id].arr_position = recv_packet->position;
+		game->players[client_id].arr_position.x = recv_packet->x;
+		game->players[client_id].arr_position.y = recv_packet->y;
 		game->players[client_id].moved_time = recv_packet->time;
 		game->players_mtx.unlock();
 
 		if (client_id == game->my_id)
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
-
+		
 		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
 	}
 	break;
-	case P_SC_DIRECTION:
+	case SC_DIRECTION:
 	{
 		SC_DIRECTION_PACKET* recv_packet = reinterpret_cast<SC_DIRECTION_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
+		int client_id = recv_packet->id;
 		
 		game->players_mtx.lock();
 		game->players[client_id].direction = recv_packet->direction;
@@ -175,10 +210,10 @@ void process_packet(char* packet)
 		//cout << "client_id: " << client_id << " direction: " << recv_packet->direction << endl;
 	}
 	break;
-	case P_SC_ATTACK:
+	case SC_ATTACK:
 	{
 		SC_ATTACK_PACKET* recv_packet = reinterpret_cast<SC_ATTACK_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
+		int client_id = recv_packet->id;
 
 		game->players_mtx.lock();
 		game->players[client_id].attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
@@ -197,15 +232,17 @@ void process_packet(char* packet)
 		//cout << recv_packet->client_id << " attack" << endl;
 	}
 	break;
-	case P_SC_IN:
+	case SC_ADD_OBJECT:
 	{
-		SC_IN_PACKET* recv_packet = reinterpret_cast<SC_IN_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
+		SC_ADD_OBJECT_PACKET* recv_packet = reinterpret_cast<SC_ADD_OBJECT_PACKET*>(packet);
+		int client_id = recv_packet->id;
 		
 		game->players_mtx.lock();
-		game->players[client_id].curr_position.x = recv_packet->position.x;
-		game->players[client_id].curr_position.y = recv_packet->position.y;
-		game->players[client_id].arr_position = recv_packet->position;
+		game->players[client_id].curr_position.x = recv_packet->x;
+		game->players[client_id].curr_position.y = recv_packet->y;
+		game->players[client_id].arr_position.x = recv_packet->x;
+		game->players[client_id].arr_position.y = recv_packet->y;
+
 		game->players[client_id].state = ST_IDLE;
 		
 		memcpy(game->players[client_id].name, recv_packet->name, 30);
@@ -213,10 +250,10 @@ void process_packet(char* packet)
 		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
 	}
 	break;
-	case P_SC_OUT:
+	case SC_REMOVE_OBJECT:
 	{
-		SC_OUT_PACKET* recv_packet = reinterpret_cast<SC_OUT_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
+		SC_REMOVE_OBJECT_PACKET* recv_packet = reinterpret_cast<SC_REMOVE_OBJECT_PACKET*>(packet);
+		int client_id = recv_packet->id;
 		
 		game->players_mtx.lock();
 		int ret = game->players.erase(client_id);
@@ -224,7 +261,7 @@ void process_packet(char* packet)
 		//cout << "client_id: " << client_id << " out" << endl;
 	}
 	break;
-	case P_SC_STAT_CHANGE:
+	case SC_STAT_CHANGE:
 	{
 		SC_STAT_CHANGE_PACKET* recv_packet = reinterpret_cast<SC_STAT_CHANGE_PACKET*>(packet);
 		game->players[game->my_id].hp = recv_packet->hp;
@@ -236,26 +273,27 @@ void process_packet(char* packet)
 		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
 	break;
-	case P_SC_CHAT:
+	case SC_CHAT:
 	{
 		SC_CHAT_PACKET* recv_packet = reinterpret_cast<SC_CHAT_PACKET*>(packet);
-		int client_id = recv_packet->client_id;
-		game->players[client_id].chat = recv_packet->message;
+		int client_id = recv_packet->id;
+		game->players[client_id].chat = recv_packet->mess;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
 	}
 	break;
-	case P_SC_LOGIN_INFO:
+	case SC_LOGIN_INFO:
 	{
 		SC_LOGIN_INFO_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
-		game->my_id = recv_packet->client_id;
+		game->my_id = recv_packet->id;
 		game->players_mtx.lock();
-		game->players[game->my_id].curr_position.x = recv_packet->position.x;
-		game->players[game->my_id].curr_position.y = recv_packet->position.y;
-		game->players[game->my_id].arr_position = recv_packet->position;
-		
+		game->players[game->my_id].curr_position.x = recv_packet->x;
+		game->players[game->my_id].curr_position.y = recv_packet->y;
+		game->players[game->my_id].arr_position.x = recv_packet->x;
+		game->players[game->my_id].arr_position.y = recv_packet->y;
+
 		game->players[game->my_id].id = game->my_id;
-		memcpy(game->players[game->my_id].name, recv_packet->name, sizeof(recv_packet->name));
+		memcpy(game->players[game->my_id].name, game->Name, sizeof(game->Name));
 		game->players[game->my_id].hp = recv_packet->hp;
 		game->players[game->my_id].max_hp = recv_packet->max_hp;
 		game->players[game->my_id].level = recv_packet->level;

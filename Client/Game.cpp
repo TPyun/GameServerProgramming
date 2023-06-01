@@ -405,9 +405,9 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 		position = TI{ WIDTH / 2, HEIGHT / 2 };
 	else
 		position = get_relative_location(this_player->curr_position);
-	TUC sprite_size;
+	TUC sprite_size{};
 	char sprite_length = 4;
-	Direction direction = this_player->direction;
+	char direction = this_player->direction;
 	unsigned char sprite_i = this_player->sprite_iter;
 	
 	player_sprite[this_player->state].setColor(color);
@@ -432,15 +432,15 @@ void Game::draw_information_mode()
 {
 	//draw player list
 	int text_size = 13;
-	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, 730 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, WIDTH - 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
 	int information_height = 0;
 	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, "Ping: " + std::to_string(ping), sf::Color::Black, text_size);
-	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].curr_position.x) + ", " + std::to_string(players[my_id].curr_position.y), sf::Color::Black, text_size);
+	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].arr_position.x) + ", " + std::to_string(players[my_id].arr_position.y), sf::Color::Black, text_size);
 
 	for (auto& player : players) {
 		if (player.first == my_id)
 			continue;
-		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.curr_position.x) + ", " + std::to_string(player.second.curr_position.y), sf::Color::Red, text_size);
+		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.arr_position.x) + ", " + std::to_string(player.second.arr_position.y), sf::Color::Red, text_size);
 	}
 
 	//draw map
@@ -453,12 +453,12 @@ void Game::draw_information_mode()
 	draw_sfml_rect(minimap_start_point, minimap_size, sf::Color::Black, sf::Color::Black);	//mini map
 	
 	for (auto& player : players) {
-		TI player_pos_minimap{ player.second.curr_position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x, player.second.curr_position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y };
+		TI player_pos_minimap{ player.second.curr_position.x * minimap_size.x / W_WIDTH + minimap_start_point.x, player.second.curr_position.y * minimap_size.y / W_HEIGHT + minimap_start_point.y };
 		if (player.first == my_id)
 			continue;
 		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red);	//other position on mini map
 	}
-	TI player_pos_minimap{ players[my_id].curr_position.x * minimap_size.x / MAP_SIZE + minimap_start_point.x,  players[my_id].curr_position.y * minimap_size.y / MAP_SIZE + minimap_start_point.y};
+	TI player_pos_minimap{ players[my_id].curr_position.x * minimap_size.x / W_WIDTH + minimap_start_point.x,  players[my_id].curr_position.y * minimap_size.y / W_HEIGHT + minimap_start_point.y};
 	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White);	//my position on mini map
 }
 
@@ -578,9 +578,9 @@ void Game::game_handle_events()
 			}
 		}
 	}
-
-	if (key_input.up || key_input.down || key_input.left || key_input.right)
+	if (key_input.up || key_input.down || key_input.left || key_input.right) {
 		move_flag = true;
+	}
 	else
 		move_flag = false;
 }
