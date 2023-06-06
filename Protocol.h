@@ -1,10 +1,10 @@
+#pragma once
 #include <iostream>
 #include <WS2tcpip.h>
 #include <MSWSock.h>
 
 #pragma comment (lib, "WS2_32.LIB")
 #pragma comment(lib, "MSWSock.lib")
-
 constexpr int PORT_NUM = 9000;
 constexpr int CHAT_SIZE = 100;
 constexpr int NAME_SIZE = 20;
@@ -74,6 +74,11 @@ typedef struct two_floats {
 	float x;
 	float y;
 } TF;
+
+typedef struct two_shorts {
+	short x;
+	short y;
+} TS;
 
 typedef struct two_ushorts {
 	unsigned short x;
@@ -190,7 +195,6 @@ struct SC_LOGIN_OK_PACKET {
 struct SC_LOGIN_FAIL_PACKET {
 	unsigned short size = sizeof(SC_LOGIN_FAIL_PACKET);
 	char	type = SC_LOGIN_FAIL;
-
 };
 
 struct SC_STAT_CHANGE_PACKET {

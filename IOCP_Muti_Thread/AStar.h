@@ -1,8 +1,8 @@
-#include <iostream>
+#pragma once
 #include <vector>
 #include <queue>
 #include <cmath>
-#include "Player.h"
+#include "../Protocol.h"
 
 using namespace std;
 

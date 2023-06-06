@@ -129,7 +129,7 @@ void send_move_packet()
 		move_packet.move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 		send((char*)&move_packet);
 	}
-	cout << game->key_input.up << ", " << game->key_input.down << ", " << game->key_input.left << ", " << game->key_input.right << endl;
+	//cout << game->key_input.up << ", " << game->key_input.down << ", " << game->key_input.left << ", " << game->key_input.right << endl;
 }
 
 void send_direction_packet()
@@ -269,8 +269,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
 
-		//game->play_sound(SOUND_YELL);
-		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
+		cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
 	break;
 	case SC_CHAT:
@@ -303,6 +302,18 @@ void process_packet(char* packet)
 		cout << "My Name: " << (char*)game->players[game->my_id].name << " My ID: " << game->my_id << endl;
 		
 		game->initialize_ingame();
+	}
+	break;
+	case SC_LOGIN_FAIL:
+	{
+		SC_LOGIN_FAIL_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_FAIL_PACKET*>(packet);
+		//game->login_fail = true;
+	}
+	break;
+	case SC_LOGIN_OK:
+	{
+		SC_LOGIN_OK_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_OK_PACKET*>(packet);
+		//game->login_ok = true;
 	}
 	break;
 	default: cout << "Unknown Packet Type" << endl; break;

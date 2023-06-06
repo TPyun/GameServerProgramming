@@ -1,7 +1,6 @@
 #include<iostream>
 #include<Windows.h>
 #include <sqlext.h>  
-#include <iostream>
 #include <format>
 #include <string>
 using namespace std;
@@ -23,22 +22,18 @@ int main() {
     retcode = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv);   //handle 할당
 
     // Set the ODBC version environment attribute  
-    // ODBC3를 사용하겠다
     if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
         retcode = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (void*)SQL_OV_ODBC3, 0);
 
         // Allocate connection handle  
-        // handle 만들기
         if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
             retcode = SQLAllocHandle(SQL_HANDLE_DBC, henv, &hdbc);
 
             // Set login timeout to 5 seconds  
-            // 연결 시도 5초동안
             if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
                 SQLSetConnectAttr(hdbc, SQL_LOGIN_TIMEOUT, (SQLPOINTER)5, 0);
 
                 // Connect to data source  
-                // ODBC 연결
                 retcode = SQLConnect(hdbc, (SQLWCHAR*)L"GameServer", SQL_NTS, (SQLWCHAR*)NULL, 0, NULL, 0);
 
                 // Allocate statement handle  
@@ -47,8 +42,7 @@ int main() {
                     retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
                     
 					// Execute a SQL statement directly
-					// SQL 직접 실행
-                    retcode = SQLExecDirect(hstmt, (SQLWCHAR*)L"EXEC over_exp 2000", SQL_NTS);
+                    retcode = SQLExecDirect(hstmt, (SQLWCHAR*)L"EXEC over_exp 1", SQL_NTS);
                     if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 
                         // Bind columns 1, 2, and 3  
@@ -57,12 +51,12 @@ int main() {
                         retcode = SQLBindCol(hstmt, 3, SQL_INTEGER, &user_exp, 12, &cbExp);
 
                         // Fetch and print each row of data. On an error, display a message and exit.  
-                        for (int i = 0; ; i++) {
+                        for (int i = 1; ; i++) {
                             retcode = SQLFetch(hstmt);
                             if (retcode == SQL_ERROR)
                                 cout << "Fetch Error" << endl;
                             if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-                                cout << format("{}: {} {} {}\n", i + 1, user_id, reinterpret_cast<char*>(szName), user_exp);
+                                cout << format("{}: {} {} {}\n", i, user_id, reinterpret_cast<char*>(szName), user_exp);
                             }
                             else
                                 break;

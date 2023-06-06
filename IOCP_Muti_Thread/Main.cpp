@@ -9,7 +9,9 @@
 #include <queue>
 #include <string>
 #include <cmath>
+#include "Player.h"
 #include "AStar.h"
+#include "SQL.h"
 
 extern "C"
 {
@@ -18,8 +20,12 @@ extern "C"
 #include "include/lualib.h"
 }
 #pragma comment(lib, "lua54.lib")
+
+
 using namespace std;
 using namespace chrono;
+
+SQL sql;
 
 unordered_set<int>** sector_list;
 mutex** sector_mutex;
@@ -135,6 +141,8 @@ public:
 			}
 		}
 	}
+	void send_login_ok_packet();
+	void send_login_fail_packet();
 	void send_login_info_packet();
 	void send_move_packet(int);
 	void send_direction_packet(int);
@@ -155,6 +163,18 @@ bool is_npc(int id)
 	return false;
 }
 
+void SESSION::send_login_ok_packet()
+{
+	SC_LOGIN_OK_PACKET packet;
+	do_send(&packet);
+}
+
+void SESSION::send_login_fail_packet()
+{
+	SC_LOGIN_FAIL_PACKET packet;
+	do_send(&packet);
+}
+
 void SESSION::send_login_info_packet()
 {
 	if (is_npc(this->id))
@@ -162,21 +182,6 @@ void SESSION::send_login_info_packet()
 	
 	player_count.fetch_add(1);
 	//cout << "Player Count : " << player_count << endl;
-		
-	player.position = randomly_spawn_player();
-	//player.position.x = rand() % 10;
-	//player.position.y = rand() % 10;
-
-	if (strcmp(player.name, "asd") == 0 || strcmp(player.name, "qwe") == 0) {
-		player.position.x = rand() % 10;
-		player.position.y = rand() % 10;
-	}
-
-	player.direction = DIR_DOWN;
-	player.hp = 100;
-	player.max_hp = 100;
-	player.level = 1;
-	player.exp = 0;
 	
 	SC_LOGIN_INFO_PACKET packet;
 	packet.id = id;
@@ -602,7 +607,27 @@ void process_packet(int id, char* packet)
 		SESSION* new_client = &objects[id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 
-		memcpy(new_client->player.name, recv_packet->name, sizeof(new_client->player.name));
+		PI info = sql.find_by_name(recv_packet->name);
+		if (info.level == -1) {
+			cout << "새로 계정 생성\n";
+			// 새로운 계정 생성
+			TI pos = randomly_spawn_player();
+			sql.insert_new_account(recv_packet->name, 1, 0, 100, 100, pos.x, pos.y);
+			info = sql.find_by_name(recv_packet->name);
+		}
+		else {
+			cout << "기존 계정 사용\n";
+		}
+		// 기존 계정 로드
+		memcpy(new_client->player.name, info.name, sizeof(info.name));
+		new_client->player.direction = DIR_DOWN;
+		new_client->player.level = info.level;
+		new_client->player.exp = info.exp;
+		new_client->player.hp = info.hp;
+		new_client->player.max_hp = info.max_hp;
+		new_client->player.position.x = info.x;
+		new_client->player.position.y = info.y;
+		//cout << info.name << " " << info.level << " " << info.exp << " " << info.hp << " " << info.x << " " << info.y << endl;
 
 		new_client->send_login_info_packet();										//새로온 애한테 로그인 됐다고 전송
 		{

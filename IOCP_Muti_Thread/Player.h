@@ -14,7 +14,7 @@ public:
 	TI position{ 0, 0 };
 	char direction = DIR_DOWN;
 	TC tc_direction{ 0, 0 };
-	char name[30]{};
+	char name[20]{};
 	int	hp{ 100 };
 	int	max_hp{ 100 };
 	int	exp{};
