@@ -107,5 +107,4 @@ void Player::increase_exp(int amount)
 	else {
 		exp += amount;
 	}
-	std::cout << exp << std::endl;
 }

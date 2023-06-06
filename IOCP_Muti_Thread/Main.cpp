@@ -362,15 +362,21 @@ void show_all_sector_list()
 
 void disconnect(int id)
 {
+	SESSION* this_player = &objects[id];
+	
+	if (!is_npc(id)) {	//npc아니면 저장
+		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
+	}
+	
 	{
 		lock_guard<mutex> m{ objects[id].state_mtx };
-		if (objects[id].state == ST_FREE) return;
-		else objects[id].state = ST_FREE;
+		if (this_player->state == ST_FREE) return;
+		else this_player->state = ST_FREE;
 	}
-
-	objects[id].view_list_mtx.lock();
-	unordered_set<int> view_list = objects[id].view_list;
-	objects[id].view_list_mtx.unlock();
+	
+	this_player->view_list_mtx.lock();
+	unordered_set<int> view_list = this_player->view_list;
+	this_player->view_list_mtx.unlock();
 
 	for (auto& client_in_view : view_list) {
 		objects[client_in_view].send_out_packet(id);
@@ -380,10 +386,10 @@ void disconnect(int id)
 	remove_from_sector_list(id);
 
 	if (is_npc(id)) {
-		objects[id].is_active_npc = false;
+		this_player->is_active_npc = false;
 		return;
 	}
-	closesocket(objects[id].socket);
+	closesocket(this_player->socket);
 
 	player_count.fetch_sub(1);
 	if (player_count.load() < 50) {
@@ -619,7 +625,7 @@ void process_packet(int id, char* packet)
 			cout << "기존 계정 사용\n";
 		}
 		// 기존 계정 로드
-		memcpy(new_client->player.name, info.name, sizeof(info.name));
+		memcpy(new_client->player.name, info.name, sizeof(new_client->player.name));
 		new_client->player.direction = DIR_DOWN;
 		new_client->player.level = info.level;
 		new_client->player.exp = info.exp;

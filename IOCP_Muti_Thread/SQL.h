@@ -34,7 +34,8 @@ public:
 	~SQL();
     PI get_list();
 	PI get_exp_over(int exp);
-    
-    PI find_by_name(char name[NAME_LEN]);
-	void insert_new_account(char name[NAME_LEN], int level, int exp, int hp, int max_hp, int pos_x, int pos_y);
+    PI find_by_name(char* name);
+	void insert_new_account(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y);
+	void save_info(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y);
+	void delete_all();
 };

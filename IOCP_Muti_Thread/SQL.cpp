@@ -63,7 +63,6 @@ PI SQL::get_list()
             cout << "Fetch Error" << endl;
         if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
             //cout << format("{:5d}: Name:{} Level:{:4d} Exp:{:4d} Hp:{:4d} MaxHp:{:4d} PosX:{:4d} PosY:{:4d}\n", i, reinterpret_cast<char*>(szName), user_level, user_exp, user_hp, user_max_hp, user_pos_x, user_pos_y);
-
             return PI{ reinterpret_cast<char*>(szName), user_level, user_exp, user_hp, user_max_hp, user_pos_x, user_pos_y };
         }
         else return PI{};
@@ -75,12 +74,12 @@ PI SQL::get_exp_over(int exp)
     // SQLAllocHandle
     retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
     if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-        cout << "SQL Statement Success" << endl;
 
-        // Execute a SQL statement directly
         wstring sqlStatement = L"EXEC over_exp " + to_wstring(exp);
         retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+        
         if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+            cout << "get exp over success" << endl;
             return get_list();
         }
         else cout << "SQLExecDirect Error" << endl;
@@ -89,19 +88,19 @@ PI SQL::get_exp_over(int exp)
     return PI{};
 }
 
-PI SQL::find_by_name(char name[NAME_LEN])
+PI SQL::find_by_name(char* name)
 {
 	// SQLAllocHandle
 	retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
 	if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-		cout << "SQL Statement Success" << endl;
 
-        std::string nameString(name);
-        std::wstring sqlStatement = L"EXEC find_by_name '" + std::wstring(nameString.begin(), nameString.end()) + L"'";
-        //std::wcout << sqlStatement << std::endl;
-
+        string nameString(name);
+        wstring sqlStatement = L"EXEC find_by_name '" + wstring(nameString.begin(), nameString.end()) + L"'";
+        wcout << sqlStatement << endl;
 		retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+        
 		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+            cout << "find by name success" << endl;
             return get_list();
 		}
 		else cout << "SQLExecDirect Error" << endl;
@@ -110,21 +109,56 @@ PI SQL::find_by_name(char name[NAME_LEN])
     return PI{};
 }
 
-void SQL::insert_new_account(char name[NAME_LEN], int level, int exp, int hp, int max_hp, int pos_x, int pos_y)
+void SQL::insert_new_account(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y)
 {
 	// SQLAllocHandle
 	retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
 	if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-		cout << "SQL Statement Success" << endl;
 
-		std::string nameString(name);
-		std::wstring sqlStatement = L"EXEC insert_new_account '" + std::wstring(nameString.begin(), nameString.end()) + L"'" + L"," + std::to_wstring(level) + L"," + std::to_wstring(exp) + L"," + std::to_wstring(hp) + L"," + std::to_wstring(max_hp) + L"," + std::to_wstring(pos_x) + L"," + std::to_wstring(pos_y);
-
-		retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+		string nameString(name);
+		wstring sqlStatement = L"EXEC insert_new_account '" + wstring(nameString.begin(), nameString.end()) + L"'" + L"," + to_wstring(level) + L"," + to_wstring(exp) + L"," + to_wstring(hp) + L"," + to_wstring(max_hp) + L"," + to_wstring(pos_x) + L"," + to_wstring(pos_y);
+		wcout << sqlStatement << endl;
+        retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+        
 		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			cout << "insert new account success" << endl;
 		}
 		else cout << "SQLExecDirect Error" << endl;
 	}
 	else cout << "SQL Statement Error" << endl;
+}
+
+void SQL::save_info(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y)
+{
+	// SQLAllocHandle
+	retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
+	if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+        
+		string nameString(name);
+		wstring sqlStatement = L"EXEC save_info '" + wstring(nameString.begin(), nameString.end()) + L"'" + L"," + to_wstring(level) + L"," + to_wstring(exp) + L"," + to_wstring(hp) + L"," + to_wstring(max_hp) + L"," + to_wstring(pos_x) + L"," + to_wstring(pos_y);
+        wcout << sqlStatement << endl;
+        retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+
+		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+			cout << "save info success" << endl;
+		}
+		else cout << "SQLExecDirect Error" << endl;
+	}
+	else cout << "SQL Statement Error" << endl;
+}
+
+void SQL::delete_all()
+{
+    retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
+    if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+
+		wstring sqlStatement = L"EXEC delete_all";
+        retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
+        
+        if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
+            cout << "delete all success" << endl;
+        }
+        else cout << "SQLExecDirect Error" << endl;
+    }
+    else cout << "SQL Statement Error" << endl;
 }

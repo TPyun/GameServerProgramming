@@ -247,7 +247,7 @@ void Game::main_handle_events()
 		else
 			input_warning = true;
 	}
-	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 20) {
+	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 15) {
 		//cout << "Typing: " << static_cast<char>(sfml_event.text.unicode) << endl;
 		// Only add ASCII characters
 		if (static_cast<char>(sfml_event.text.unicode) > 30) {		//지우는거랑 엔터 안먹히게 제한
