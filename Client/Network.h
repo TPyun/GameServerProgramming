@@ -128,8 +128,8 @@ void send_move_packet()
 	if (moved) {
 		move_packet.move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 		send((char*)&move_packet);
+		//cout << game->key_input.up << ", " << game->key_input.down << ", " << game->key_input.left << ", " << game->key_input.right << endl;
 	}
-	//cout << game->key_input.up << ", " << game->key_input.down << ", " << game->key_input.left << ", " << game->key_input.right << endl;
 }
 
 void send_direction_packet()
@@ -193,10 +193,10 @@ void process_packet(char* packet)
 		game->players[client_id].moved_time = recv_packet->time;
 		game->players_mtx.unlock();
 
-		if (client_id == game->my_id)
+		if (client_id == game->my_id) {
 			game->ping = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count() - recv_packet->time;
-		
-		//cout << "client_id: " << client_id << " x: " << recv_packet->position.x << " y: " << recv_packet->position.y << endl;
+			//cout << "client_id: " << client_id << " x: " << recv_packet->x << " y: " << recv_packet->y << endl;
+		}
 	}
 	break;
 	case SC_DIRECTION:
@@ -229,7 +229,7 @@ void process_packet(char* packet)
 		else {
 			game->play_sound(SOUND_SWORD_ATTACK, false);
 		}
-		//cout << recv_packet->client_id << " attack" << endl;
+		//cout << recv_packet->id << " attack" << endl;
 	}
 	break;
 	case SC_ADD_OBJECT:
@@ -247,7 +247,7 @@ void process_packet(char* packet)
 		
 		memcpy(game->players[client_id].name, recv_packet->name, 30);
 		game->players_mtx.unlock();
-		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].position.x << " " << game->players[client_id].position.y << endl;
+		//cout << "IN client_id: " << client_id << " name: " << recv_packet->name << " " << game->players[client_id].arr_position.x << " " << game->players[client_id].arr_position.y << endl;
 	}
 	break;
 	case SC_REMOVE_OBJECT:
@@ -269,7 +269,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
 
-		cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
+		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
 	break;
 	case SC_CHAT:
@@ -299,7 +299,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].exp = recv_packet->exp;
 		game->players_mtx.unlock();
 		
-		cout << "My Name: " << (char*)game->players[game->my_id].name << " My ID: " << game->my_id << endl;
+		//cout << "My Name: " << (char*)game->players[game->my_id].name << " My ID: " << game->my_id << endl;
 		
 		game->initialize_ingame();
 	}

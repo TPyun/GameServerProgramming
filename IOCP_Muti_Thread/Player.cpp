@@ -1,4 +1,5 @@
 #include "Player.h"
+#include <math.h>
 
 Player::Player()
 {
@@ -88,9 +89,11 @@ void Player::increase_hp(int amount)
 
 bool Player::decrease_hp(int amount)
 {
-	bool dead{ false };
+	bool dead = false;
 	hp -= amount;
 	if (hp <= 0) {
+		hp = 100;
+		exp /= 2;
 		dead = true;
 	}
 	return dead;
@@ -98,13 +101,23 @@ bool Player::decrease_hp(int amount)
 
 void Player::increase_exp(int amount)
 {
-	if (exp >= level * 100) {
-		exp -= level * 100;
+	exp += amount;
+	int max_exp = 100 * pow(2, level - 1);
+	if (exp >= max_exp) {
+		exp -= max_exp;
 		level++;
 		max_hp += 10;
 		hp = max_hp;
 	}
-	else {
-		exp += amount;
+}
+
+bool Player::natural_healing()
+{
+	bool is_full = false;
+	hp += max_hp / 10;
+	if (hp > max_hp) {
+		hp = max_hp;
+		is_full = true;
 	}
+	return is_full; 
 }

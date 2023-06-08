@@ -94,7 +94,7 @@ void Game::update()
 }
 
 template<typename T>
-T lerp(const T& a, const T& b, float t) {
+T lerp(const T& a, const T& b, double t) {
 	return a + (b - a) * t;
 }
 
@@ -117,13 +117,13 @@ void Game::timer()
 		
 		bool move_x = true;
 		bool move_y = true;
-		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.1f) {
+		if (abs(player.second.arr_position.x - player.second.curr_position.x) < 0.05f) {
 			player.second.curr_position.x = player.second.arr_position.x;
 			player.second.state = ST_IDLE;
 			move_x = false;
 			//stop_sound(SOUND_MOVE);
 		}
-		if (abs(player.second.arr_position.y - player.second.curr_position.y) < 0.1f) {
+		if (abs(player.second.arr_position.y - player.second.curr_position.y) < 0.05f) {
 			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
 			move_y = false;
@@ -144,16 +144,22 @@ void Game::timer()
 			else if (player.second.arr_position.y - player.second.curr_position.y > 0)
 				sign_y = 1;
 			
-			float delay;
-			if(player.first < MAX_USER)
-				delay = 1000.f / (float)PLAYER_MOVE_TIME;
+			double delay;
+			if (player.first < MAX_USER)
+				delay = 1000.f / PLAYER_MOVE_TIME;
 			else
-				delay = 1000.f / (float)NPC_MOVE_TIME;
+				delay = 1000.f / NPC_MOVE_TIME;
 
-			float velocity = delay / (float)real_fps;
-			player.second.curr_position.x += (float)sign_x * velocity;
-			player.second.curr_position.y += (float)sign_y * velocity;
+			double velocity = delay / real_fps;
+			player.second.curr_position.x += (double)sign_x * velocity;
+			player.second.curr_position.y += (double)sign_y * velocity;
 			player.second.state = ST_MOVE;
+
+			/*if (player.first == my_id) {
+				cout << fixed;
+				cout.precision(6);
+				cout << "My position: " << player.second.curr_position.x << " " << player.second.curr_position.y << endl;
+			}*/
 		}
 	
 		if (player.second.attack_time + 300 > current_time) {
@@ -274,7 +280,7 @@ TI Game::get_relative_location(TI position)
 	return relative_position;
 }
 
-TI Game::get_relative_location(TF position)
+TI Game::get_relative_location(TD position)
 {
 	TI relative_position = { (WIDTH / 2) + (position.x - players[my_id].curr_position.x) * BLOCK_SIZE, (HEIGHT / 2) + (position.y - players[my_id].curr_position.y) * BLOCK_SIZE };
 	return relative_position;
@@ -335,24 +341,34 @@ void Game::stop_sound(char type)
 
 void Game::draw_game()
 {
-	TF player_position = players[my_id].curr_position;
+	TD player_position = players[my_id].curr_position;
 	
-	// Draw sand texture
-	float sprite_scale_x = (float)WIDTH / (float)sand_texture.getSize().x;
-	float sprite_scale_y = (float)HEIGHT / (float)sand_texture.getSize().y;
-	sand_sprite.setScale(sprite_scale_x, sprite_scale_y);
-	for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			float a = (int)player_position.x / CLIENT_RANGE * CLIENT_RANGE;
-			float b = (int)player_position.y / CLIENT_RANGE * CLIENT_RANGE;
+	// ¼Ò¼öÁ¡
+	TF integer_part;
+	TI integer_real;
+	TF fraction;
+	fraction.x = modf(player_position.x, &integer_part.x);
+	fraction.y = modf(player_position.y, &integer_part.y);
+	integer_real.x = (int)integer_part.x;
+	integer_real.y = (int)integer_part.y;
 
-			float sprite_pos_x = WIDTH * x -((player_position.x - a) * BLOCK_SIZE);
-			float sprite_pos_y = HEIGHT * y -((player_position.y - b) * BLOCK_SIZE);
+	TF offset_pos;
+	offset_pos.x = integer_real.x % CLIENT_RANGE + fraction.x;
+	offset_pos.y = integer_real.y % CLIENT_RANGE + fraction.y;
+
+	// Draw sand texture
+	double sprite_scale_x = (double)WIDTH / (double)sand_texture.getSize().x;
+	double sprite_scale_y = (double)HEIGHT / (double)sand_texture.getSize().y;
+	sand_sprite.setScale(sprite_scale_x, sprite_scale_y);
+	for (int x = 0; x <= 1; x++) {
+		for (int y = 0; y <= 1; y++) {
+			int sprite_pos_x = WIDTH * x - offset_pos.x * WIDTH / CLIENT_RANGE;
+			int sprite_pos_y = HEIGHT * y - offset_pos.y * HEIGHT / CLIENT_RANGE;
 			sand_sprite.setPosition(sprite_pos_x, sprite_pos_y);
 			sfml_window->draw(sand_sprite);
 		}
 	}
-
+	
 	// Draw the players in sorted order
 	for (int height = - VIEW_RANGE - 1; height <= VIEW_RANGE + 1; height++) {
 		for (const auto& player : players) {
@@ -387,11 +403,11 @@ void Game::draw_stat()
 	int level = players[my_id].level;
 	int exp = players[my_id].exp;
 	
-	int hp_gauge = (int)((float)hp * 200.f / max_hp);
-	int exp_gauge = ((float)exp * 2 / level);
+	int hp_gauge = (int)(200.f * (float)hp / max_hp);
+	int exp_gauge = (200.f * (float)exp / (100.f * pow(2, level - 1)));
 	
 	draw_sfml_rect({ 50, 10 }, { hp_gauge, 15 }, sf::Color::Transparent, sf::Color::Red);
-	draw_sfml_rect({ 50, 25 }, { (int)exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green);
+	draw_sfml_rect({ 50, 25 }, { exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green);
 	
 	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent);
 }

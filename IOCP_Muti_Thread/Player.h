@@ -29,6 +29,7 @@ public:
 	void increase_hp(int amount);
 	bool decrease_hp(int amount);
 	void increase_exp(int amount);
+	bool natural_healing();
 	
 private:
 
