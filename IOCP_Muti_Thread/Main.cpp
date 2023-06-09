@@ -1265,7 +1265,7 @@ void do_timer()
 int main()
 {
 	//sql.delete_all();
-	//sql.show_all();
+	sql.show_all();
 	
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
