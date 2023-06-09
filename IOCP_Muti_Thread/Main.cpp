@@ -26,6 +26,7 @@ using namespace std;
 using namespace chrono;
 
 SQL sql;
+mutex sql_mtx;
 
 unordered_set<int>** sector_list;
 mutex** sector_mutex;
@@ -95,14 +96,13 @@ public:
 	Player player;
 	
 	SESSION_STATE state;
-	mutex state_mtx;
+	//mutex state_mtx;
 	unordered_set<int> view_list;
 	mutex view_list_mtx;
 	lua_State* lua;
 	mutex lua_mtx;
 
 	atomic_bool	is_natural_healing;
-	
 	atomic_bool	is_active_npc;
 	int enemy_id;
 
@@ -148,7 +148,7 @@ public:
 	void send_login_info_packet();
 	void send_move_packet(int);
 	void send_direction_packet(int);
-	void send_attack_packet(int, bool, bool);
+	void send_attack_packet(int, bool, bool, ATTACK_TYPE);
 	void send_in_packet(int);
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
@@ -220,15 +220,21 @@ void SESSION::send_direction_packet(int watcher_id)
 	do_send(&packet);
 }
 
-void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead)
+void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead, ATTACK_TYPE attack_type)
 {
 	if (is_npc(this->id))
 		return;
 	
 	SC_ATTACK_PACKET packet;
 	packet.id = attacker_id;
-	packet.hit = hit;
-	packet.dead = dead;
+	if (dead)
+		packet.hit_type = HIT_TYPE_DEAD;
+	else if (hit)
+		packet.hit_type = HIT_TYPE_HIT;
+	else
+		packet.hit_type = HIT_TYPE_NONE;
+
+	packet.attack_type = attack_type;
 	do_send(&packet);
 }
 
@@ -365,15 +371,16 @@ void show_all_sector_list()
 void disconnect(int id)
 {
 	SESSION* this_player = &objects[id];
-	
-	if (!is_npc(id)) {	//npc아니면 저장
-		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
-	}
-	
 	{
-		lock_guard<mutex> m{ objects[id].state_mtx };
+		//lock_guard<mutex> m{ this_player->state_mtx };
 		if (this_player->state == ST_FREE) return;
 		else this_player->state = ST_FREE;
+	}
+
+	if (!is_npc(id)) {	//npc아니면 저장
+		sql_mtx.lock();
+		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
+		sql_mtx.unlock();
 	}
 	
 	this_player->view_list_mtx.lock();
@@ -386,6 +393,7 @@ void disconnect(int id)
 	}
 
 	remove_from_sector_list(id);
+	this_player->is_natural_healing = false;
 
 	if (is_npc(id)) {
 		this_player->is_active_npc = false;
@@ -414,13 +422,28 @@ bool in_eyesight(int p1, int p2)
 	return true;
 }
 
-bool attack_position(int attacker, int defender)
+bool attack_position(int attacker, int defender, ATTACK_TYPE attack_type)
 {
-	if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y) { 
-		return true;
-	}
-	if (objects[attacker].player.position.x + objects[attacker].player.tc_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.tc_direction.y == objects[defender].player.position.y) {
-		return true;
+	switch (attack_type)
+	{
+	case ATTACK_FORWARD:
+		if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y)
+			return true;
+		if (objects[attacker].player.position.x + objects[attacker].player.tc_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.tc_direction.y == objects[defender].player.position.y)
+			return true;
+		break;
+
+	case ATTACK_WIDE:
+		for (int x = -1; x <= 1; x++) {
+			for (int y = -1; y <= 1; y++) {
+				if (x * y != 0) continue;
+				if (objects[attacker].player.position.x + x == objects[defender].player.position.x && objects[attacker].player.position.y + y == objects[defender].player.position.y)
+					return true;
+			}
+		}
+		break;
+	default: cout << "Attack Position Error\n"; 
+		break;
 	}
 	return false;
 }
@@ -428,7 +451,7 @@ bool attack_position(int attacker, int defender)
 int get_new_client_id()
 {
 	for (int i = 0; i < objects.size(); i++) {
-		lock_guard<mutex> m(objects[i].state_mtx);
+		//lock_guard<mutex> m(objects[i].state_mtx);
 		if (objects[i].state == ST_FREE) return i;
 	}
 	return -1;
@@ -455,6 +478,7 @@ void wake_up_npc(int npc_id)
 void natural_healing_start(int id)
 {
 	if (objects[id].is_natural_healing) return;
+	if(objects[id].player.hp == objects[id].player.max_hp) return;
 	bool old_state = false;
 	if (false == atomic_compare_exchange_strong(&objects[id].is_natural_healing, &old_state, true))
 		return;
@@ -501,10 +525,10 @@ void process_packet(int id, char* packet)
 		moved_client->view_list_mtx.unlock();
 
 		for (auto& client_in_sector : list_of_sector) {
-			{
-				lock_guard<mutex> m(objects[id].state_mtx);
-				if (objects[client_in_sector].state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
+			//	if (objects[client_in_sector].state != ST_INGAME) continue;
+			//}
 			if (objects[client_in_sector].id == id) continue;
 			if (in_eyesight(id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기
@@ -571,18 +595,32 @@ void process_packet(int id, char* packet)
 		SESSION* attacker = &objects[id];
 		CS_ATTACK_PACKET* recv_packet = reinterpret_cast<CS_ATTACK_PACKET*>(packet);
 		
-		if (attacker->prev_attack_time + 500 > recv_packet->time) return;
+		if (attacker->prev_attack_time + PLAYER_ATTACK_TIME > recv_packet->time) return;	// 시간으로 거르기
 		attacker->prev_attack_time = recv_packet->time;
 		//cout << attacker->id << " attack" << endl;
+
+		int damage{};
+		switch (recv_packet->attack_type)
+		{
+		case ATTACK_FORWARD:
+			damage = FORWARD_ATTACK_DAMAGE;
+			break;
+		case ATTACK_WIDE:
+			damage = WIDE_ATTACK_DAMAGE;
+			break;
+		default:
+			cout << "Unknown Attack Type: process_packet()\n";
+			break;
+		}
 
 		unordered_set<int> attacker_view_list;
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(id, list_of_sector);
 		for (auto& client_in_sector : list_of_sector) {
-			{
-				lock_guard<mutex> m(objects[id].state_mtx);
-				if (objects[client_in_sector].state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
+			//	if (objects[client_in_sector].state != ST_INGAME) continue;
+			//}
 			if (client_in_sector == id) continue;
 			if (in_eyesight(id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				attacker_view_list.insert(client_in_sector);								//new list 채우기
@@ -593,9 +631,9 @@ void process_packet(int id, char* packet)
 		bool hit = false;
 		bool dead = false;
 		for (auto& watcher : attacker_view_list) {
-			if (attack_position(id, watcher)) {
+			if (attack_position(id, watcher, recv_packet->attack_type)) {
 				hit = true;
-				dead = objects[watcher].player.decrease_hp(50);
+				dead = objects[watcher].player.decrease_hp(damage);
 
 				if (is_npc(watcher)) {	//npc가 맞았으면 타겟을 때린놈으로 지정
 					objects[watcher].enemy_id = id;
@@ -615,9 +653,9 @@ void process_packet(int id, char* packet)
 		}
 
 		for (auto& watcher : attacker_view_list) {
-			objects[watcher].send_attack_packet(id, hit, dead);		//공격 모션
+			objects[watcher].send_attack_packet(id, hit, dead, recv_packet->attack_type);		//공격 모션
 		}
-		attacker->send_attack_packet(id, hit, dead);					//맞는 소리
+		attacker->send_attack_packet(id, hit, dead, recv_packet->attack_type);					//맞는 소리
 	}
 	break;
 	case CS_LOGIN:
@@ -625,18 +663,25 @@ void process_packet(int id, char* packet)
 		SESSION* new_client = &objects[id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 
+		sql_mtx.lock();
 		PI info = sql.find_by_name(recv_packet->name);
+		sql_mtx.unlock();
+
 		if (info.level == -1) {
 			//cout << "새로 계정 생성\n";
 			// 새로운 계정 생성
 			TI pos = randomly_spawn_player();
+			sql_mtx.lock();
 			sql.insert_new_account(recv_packet->name, 1, 0, 100, 100, pos.x, pos.y);
 			info = sql.find_by_name(recv_packet->name);
+			sql_mtx.unlock();
 		}
-		if (info.level == -1) {
+
+		if (info.level == -1) {	//만일의 sql 오류일때 연결 끊기
 			disconnect(id);
 			break;
 		}
+
 		// 기존 계정 로드
 		memcpy(&new_client->player.name, &recv_packet->name, sizeof(recv_packet->name));
 		new_client->player.direction = DIR_DOWN;
@@ -648,23 +693,17 @@ void process_packet(int id, char* packet)
 		new_client->player.position.y = info.y;
 		//cout << info.name << " " << info.level << " " << info.exp << " " << info.hp << " " << info.x << " " << info.y << endl;
 
-		/*if (strcmp(new_client->player.name, "asd") == 0 || strcmp(new_client->player.name, "qwe") == 0) {
-			cout << "yup" << endl;
-			new_client->player.position.x = rand() % 10;
-			new_client->player.position.y = rand() % 10;
-		}
-		else
-			cout << "no" << endl;*/
-
 		new_client->send_login_info_packet();										//새로온 애한테 로그인 됐다고 전송
 		{
-			lock_guard<mutex> m{ objects[id].state_mtx };
+			//lock_guard<mutex> m{ objects[id].state_mtx };
 			objects[id].state = ST_INGAME;
 		}
 
+		natural_healing_start(id);			//피 부족하면 채우기
+
 		for (auto& old_client : objects) {
 			{
-				lock_guard<mutex> m(objects[id].state_mtx);
+				//lock_guard<mutex> m(old_client.state_mtx);
 				if (old_client.state != ST_INGAME) continue;
 			}
 			if (id == old_client.id) continue;
@@ -770,7 +809,7 @@ void work_thread()
 			int id = get_new_client_id();
 			if (id != -1) {
 				{
-					lock_guard<mutex> m(objects[id].state_mtx);
+					//lock_guard<mutex> m(objects[id].state_mtx);
 					objects[id].state = ST_ALLOC;
 				}
 				objects[id].id = id;
@@ -794,7 +833,12 @@ void work_thread()
 		}
 		case OP_NATURAL_HEALING:
 		{
+			{
+				//lock_guard<mutex> m(objects[key].state_mtx);
+				if (objects[key].state != ST_INGAME) break;
+			}
 			//cout << "Natural Heal" << endl;
+
 			bool is_full = objects[key].player.natural_healing();
 			objects[key].send_stat_packet();
 			if (is_full) { 
@@ -926,10 +970,10 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 		for (auto& client_in_sector : list_of_sector) {
 			if (is_npc(client_in_sector)) continue;
-			{
-				lock_guard<mutex> m(objects[npc_id].state_mtx);
-				if (objects[client_in_sector].state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
+			//	if (objects[client_in_sector].state != ST_INGAME) continue;
+			//}
 			if (objects[client_in_sector].id == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기
@@ -981,7 +1025,17 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 	break;
 	case EV_ATTACK:
 	{
-		if (!attack_position(npc_id, this_npc->enemy_id)) {		//거리는 되는데 방향이 안맞을 경우
+		uniform_int_distribution <int>random_attack_type(0, 1);
+		ATTACK_TYPE attack_type = static_cast<ATTACK_TYPE>(random_attack_type(dre));
+		int damage{};
+		if (attack_type == ATTACK_FORWARD)
+			damage = FORWARD_ATTACK_DAMAGE;
+		else if (attack_type == ATTACK_WIDE)
+			damage = WIDE_ATTACK_DAMAGE;
+		else
+			cout << "Unknown Attack Type: do_npc(); case: EV_ATTACK\n";
+
+		if (!attack_position(npc_id, this_npc->enemy_id, attack_type)) {		//거리는 되는데 방향이 안맞을 경우
 			reserve_timer(npc_id, EV_DIRECTION, NPC_MOVE_TIME);
 			return;
 		}
@@ -990,10 +1044,10 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(npc_id, list_of_sector);
 		for (auto& client_in_sector : list_of_sector) {
-			{
-				lock_guard<mutex> m(objects[npc_id].state_mtx);
-				if (objects[client_in_sector].state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
+			//	if (objects[client_in_sector].state != ST_INGAME) continue;
+			//}
 			if (client_in_sector == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				attacker_view_list.insert(client_in_sector);								//new list 채우기
@@ -1004,9 +1058,9 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		bool hit = false;
 		bool dead = false;
 		for (auto& watcher : attacker_view_list) {
-			if (attack_position(npc_id, watcher)) {
+			if (attack_position(npc_id, watcher, attack_type)) {
 				hit = true;
-				dead = objects[watcher].player.decrease_hp(50);
+				dead = objects[watcher].player.decrease_hp(damage);
 
 				if (!is_npc(watcher) && !dead) {	//맞은 놈이 player일때 죽지 않았다면 피 회복
 					natural_healing_start(watcher);
@@ -1018,15 +1072,16 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 						this_npc->enemy_id = -1;
 					
 					int defender_level = objects[watcher].player.level;
-					this_npc->player.increase_exp(defender_level * 50);
+					this_npc->player.increase_exp(defender_level * defender_level * EXP_INCREASE);
 					disconnect(watcher);
+					cout << "NPC가 " << watcher << " 죽임\n";
 				}
 				objects[watcher].send_stat_packet();							//맞은놈 스탯
 			}
 		}
 
 		for (auto& watcher : attacker_view_list) {
-			objects[watcher].send_attack_packet(npc_id, hit, dead);		//공격 모션
+			objects[watcher].send_attack_packet(npc_id, hit, dead, attack_type);		//공격 모션
 		}
 		
 		if (attacker_view_list.find(this_npc->enemy_id) != attacker_view_list.end()) {		//적이 있으면 계속 따라가기
@@ -1088,7 +1143,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		TI diff = { abs(enemy_position.x - my_position.x) + 1, abs(enemy_position.y - my_position.y) + 1 };
 		if(diff.x + diff.y <= 3){		//가로나 세로 딱 붙어있는 위치
 			//cout << npc_id << " 공격 범위\n";
-			reserve_timer(npc_id, EV_ATTACK, NPC_MOVE_TIME);
+			reserve_timer(npc_id, EV_ATTACK, PLAYER_ATTACK_TIME);
 			return;
 		}
 		TI next_position = turn_astar(my_position, enemy_position, diff);
@@ -1117,10 +1172,10 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 		for (auto& client_in_sector : list_of_sector) {
 			if (is_npc(client_in_sector)) continue;
-			{
-				lock_guard<mutex> m(objects[npc_id].state_mtx);
-				if (objects[client_in_sector].state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
+			//	if (objects[client_in_sector].state != ST_INGAME) continue;
+			//}
 			if (objects[client_in_sector].id == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {							//현재 시야 안에 있는 클라이언트
 				new_view_list.insert(client_in_sector);								//new list 채우기

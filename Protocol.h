@@ -25,9 +25,16 @@ constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
 constexpr int SECTOR_NUM = W_WIDTH / SECTOR_SIZE + 1;	//Server
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
-constexpr int PLAYER_MOVE_TIME = 250;
-constexpr int NPC_MOVE_TIME = 450;
-constexpr int NATURAL_HEALING_TIME = 1000;
+constexpr int PLAYER_MOVE_TIME = 300;	//모두 1000으로 바꿔야함
+constexpr int NPC_MOVE_TIME = 300;
+constexpr int NATURAL_HEALING_TIME = 300;
+constexpr int PLAYER_ATTACK_TIME = 300;
+constexpr int NPC_ATTACK_TIME = 300;
+
+constexpr int WIDE_ATTACK_DAMAGE = 20;
+constexpr int FORWARD_ATTACK_DAMAGE = 50;
+
+constexpr int EXP_INCREASE = 50;	//2로 바꿔야함
 
 constexpr char CS_LOGIN = 0;
 constexpr char CS_MOVE = 1;
@@ -133,10 +140,12 @@ struct CS_LOGOUT_PACKET {
 	char type = CS_LOGOUT;
 };
 
+enum ATTACK_TYPE{ ATTACK_FORWARD, ATTACK_WIDE};
 struct CS_ATTACK_PACKET {
 	unsigned short size = sizeof(CS_ATTACK_PACKET);
 	char type = CS_ATTACK;
 
+	ATTACK_TYPE attack_type;
 	unsigned int time;
 };
 
@@ -213,13 +222,15 @@ struct SC_STAT_CHANGE_PACKET {
 	int	level;
 };
 
+enum HIT_TYPE{ HIT_TYPE_NONE, HIT_TYPE_HIT, HIT_TYPE_DEAD};
 struct SC_ATTACK_PACKET {
 	unsigned short size = sizeof(SC_ATTACK_PACKET);
 	char type = SC_ATTACK;
 
 	int id;
-	bool hit;
-	bool dead;
+	unsigned short damage;
+	HIT_TYPE hit_type;
+	ATTACK_TYPE attack_type;
 };
 
 struct SC_DIRECTION_PACKET {

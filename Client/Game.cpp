@@ -18,10 +18,18 @@ Game::Game()
 	//draw_sfml_text_s(TI{ WIDTH / 2 - players[my_id].size.x / 2 - 90 , HEIGHT / 2 - players[my_id].size.y / 2 }, "Loading Game", sf::Color::White, 30);
 	//render();
 
-	sand_texture.loadFromFile("Texture/grass1.png");
-	sand_texture.setSmooth(true);
-	sand_sprite.setTexture(sand_texture);
+	//땅 텍스쳐
+	grass_texture.loadFromFile("Texture/grass1.png");
+	grass_texture.setSmooth(true);
+	grass_sprite.setTexture(grass_texture);
+
+	//불 텍스쳐
+	fire_texture.loadFromFile("Texture/fire.png");
+	for (int i = 0; i < 4; i++) {
+		fire_sprite[i].setTexture(fire_texture);
+	}
 	
+	//플레이어 텍스쳐
 	char player_tex_file[6][20]{ "Idle_new.png", "Walk_new.png", "Run_new.png", "Push_new.png", "Attack.png", "Hit_new.png" };
 	for (int act = 0; act < 6; act++) {
 		char player_tex_root[30] = "Texture/Player/";
@@ -154,12 +162,6 @@ void Game::timer()
 			player.second.curr_position.x += (double)sign_x * velocity;
 			player.second.curr_position.y += (double)sign_y * velocity;
 			player.second.state = ST_MOVE;
-
-			/*if (player.first == my_id) {
-				cout << fixed;
-				cout.precision(6);
-				cout << "My position: " << player.second.curr_position.x << " " << player.second.curr_position.y << endl;
-			}*/
 		}
 	
 		if (player.second.attack_time + 300 > current_time) {
@@ -324,6 +326,7 @@ void Game::play_sound(char type, bool loop)
 		if (sound.getStatus() == 0) {
 			sound.setBuffer(sound_buffer[type]);
 			sound.setLoop(loop);
+			sound.setVolume(0.5);
 			sound.play();
 			return;
 		}
@@ -357,15 +360,15 @@ void Game::draw_game()
 	offset_pos.y = integer_real.y % CLIENT_RANGE + fraction.y;
 
 	// Draw sand texture
-	double sprite_scale_x = (double)WIDTH / (double)sand_texture.getSize().x;
-	double sprite_scale_y = (double)HEIGHT / (double)sand_texture.getSize().y;
-	sand_sprite.setScale(sprite_scale_x, sprite_scale_y);
+	double sprite_scale_x = (double)WIDTH / (double)grass_texture.getSize().x;
+	double sprite_scale_y = (double)HEIGHT / (double)grass_texture.getSize().y;
+	grass_sprite.setScale(sprite_scale_x, sprite_scale_y);
 	for (int x = 0; x <= 1; x++) {
 		for (int y = 0; y <= 1; y++) {
 			int sprite_pos_x = WIDTH * x - offset_pos.x * WIDTH / CLIENT_RANGE;
 			int sprite_pos_y = HEIGHT * y - offset_pos.y * HEIGHT / CLIENT_RANGE;
-			sand_sprite.setPosition(sprite_pos_x, sprite_pos_y);
-			sfml_window->draw(sand_sprite);
+			grass_sprite.setPosition(sprite_pos_x, sprite_pos_y);
+			sfml_window->draw(grass_sprite);
 		}
 	}
 	
@@ -573,8 +576,12 @@ void Game::game_handle_events()
 			direction_flag = changed_dir;
 		}
 		
-		if (sfml_event.key.code == sf::Keyboard::Space && !attack_flag) {
-			attack_flag = true;
+		if (sfml_event.key.code == sf::Keyboard::Space && !forward_attack_flag) {
+			forward_attack_flag = true;
+		}
+
+		if (sfml_event.key.code == sf::Keyboard::Q && !wide_attack_flag) {
+			wide_attack_flag = true;
 		}
 
 		if (sfml_event.key.code == sf::Keyboard::Tab) {

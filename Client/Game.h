@@ -45,11 +45,9 @@ public:
 	
 	bool move_flag = false;
 	bool direction_flag = false;
-	bool attack_flag = false;
+	bool forward_attack_flag = false;
+	bool wide_attack_flag = false;
 	bool chat_flag = false;
-
-	sf::SoundBuffer sound_buffer[100];
-	sf::Sound sounds[100];
 
 	bool connect_warning = false;
 
@@ -77,10 +75,15 @@ private:
 	sf::Event sfml_event{};
 	sf::Text sfml_text;
 	sf::Texture player_texture[6];
-	sf::Texture sand_texture;
-	sf::Sprite sand_sprite;
+	sf::Texture grass_texture;
+	sf::Texture fire_texture;
+	sf::Sprite grass_sprite;
 	sf::Sprite player_sprite[6];
+	sf::Sprite fire_sprite[5];
 
+	sf::SoundBuffer sound_buffer[100];
+	sf::Sound sounds[100];
+	
 	TI user_moniter{ GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
 	bool isRunning = true;
 	bool information_mode = false;

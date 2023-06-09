@@ -143,9 +143,18 @@ void send_direction_packet()
 void send_attack_packet()
 {
 	CS_ATTACK_PACKET attack_packet;
+
+	if (game->forward_attack_flag) {
+		attack_packet.attack_type = ATTACK_FORWARD;
+		game->forward_attack_flag = false;
+	}
+	else if (game->wide_attack_flag){ 
+		attack_packet.attack_type = ATTACK_WIDE; 
+		game->wide_attack_flag = false;
+	}
+	
 	attack_packet.time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 	send((char*)&attack_packet);
-	game->attack_flag = false;
 }
 
 void send_chat_packet()
@@ -220,14 +229,18 @@ void process_packet(char* packet)
 		game->players[client_id].sprite_iter = 0;
 		game->players_mtx.unlock();
 		
-		if (recv_packet->hit) {
-			game->play_sound(SOUND_SWORD_HIT, false);
-			
-			if (recv_packet->dead)
-				game->play_sound(SOUND_DEAD, false);
-		}
-		else {
+		switch (recv_packet->hit_type)
+		{
+		case HIT_TYPE_NONE:
 			game->play_sound(SOUND_SWORD_ATTACK, false);
+			break;
+		case HIT_TYPE_HIT:
+			game->play_sound(SOUND_SWORD_HIT, false);
+			break;
+		case HIT_TYPE_DEAD:
+			game->play_sound(SOUND_SWORD_HIT, false);
+			game->play_sound(SOUND_DEAD, false);
+			break;
 		}
 		//cout << recv_packet->id << " attack" << endl;
 	}
@@ -367,7 +380,7 @@ DWORD __stdcall process(LPVOID arg)
 			if (game->chat_flag) {
 				send_chat_packet();
 			}
-			if (game->attack_flag) {
+			if (game->forward_attack_flag || game->wide_attack_flag) {
 				send_attack_packet();
 			}
 			SleepEx(10, true);
