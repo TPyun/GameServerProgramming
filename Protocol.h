@@ -10,7 +10,7 @@ constexpr int CHAT_SIZE = 100;
 constexpr int NAME_SIZE = 20;
 
 constexpr int BUFSIZE = 200;
-constexpr int MAX_USER = 1'0000;
+constexpr int MAX_USER = 1'5000;
 constexpr int MAX_NPC = 20'0000;
 
 constexpr int WIDTH = 735;	//Client
@@ -19,14 +19,15 @@ constexpr int HEIGHT = 735;	//Client
 constexpr int W_WIDTH = 2000;		//Size of Map
 constexpr int W_HEIGHT = 2000;
 
-constexpr int CLIENT_RANGE = 21;		//Client
-constexpr int VIEW_RANGE = 11;	//Server
+constexpr int CLIENT_RANGE = 19;		//Client
+constexpr int VIEW_RANGE = 7;	//Server
 constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
 constexpr int SECTOR_NUM = W_WIDTH / SECTOR_SIZE + 1;	//Server
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
-constexpr int PLAYER_MOVE_TIME = 333;
+constexpr int PLAYER_MOVE_TIME = 250;
 constexpr int NPC_MOVE_TIME = 450;
+constexpr int NATURAL_HEALING_TIME = 1000;
 
 constexpr char CS_LOGIN = 0;
 constexpr char CS_MOVE = 1;
@@ -74,6 +75,11 @@ typedef struct two_floats {
 	float x;
 	float y;
 } TF;
+
+typedef struct two_doubles {
+	double x;
+	double y;
+} TD;
 
 typedef struct two_shorts {
 	short x;

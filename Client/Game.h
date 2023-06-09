@@ -55,7 +55,7 @@ public:
 
 private:
 	TI get_relative_location(TI);
-	TI get_relative_location(TF);
+	TI get_relative_location(TD);
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);

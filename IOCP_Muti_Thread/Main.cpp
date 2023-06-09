@@ -31,7 +31,7 @@ unordered_set<int>** sector_list;
 mutex** sector_mutex;
 
 HANDLE h_iocp;
-enum EVENT_TYPE { EV_SLEEP, EV_MOVE, EV_ATTACK, EV_FOLLOW, EV_DIRECTION };
+enum EVENT_TYPE { EV_SLEEP, EV_MOVE, EV_ATTACK, EV_FOLLOW, EV_DIRECTION, EV_NATURAL_HEALING_FOR_PLAYERS };
 class EVENT {
 public:
 	int object_id;
@@ -48,7 +48,7 @@ public:
 priority_queue<EVENT> timer_queue;
 mutex timer_mtx;
 
-enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC };
+enum COMPLETION_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC, OP_NATURAL_HEALING };
 class OVER_EXP {
 public:
 	WSAOVERLAPPED over;	//클래스의 맨 첫번째에 있어야만 함. 이거를 가지고 클래스 포인터 위치 찾을거임
@@ -99,7 +99,9 @@ public:
 	unordered_set<int> view_list;
 	mutex view_list_mtx;
 	lua_State* lua;
-	mutex	lua_mtx;
+	mutex lua_mtx;
+
+	atomic_bool	is_natural_healing;
 	
 	atomic_bool	is_active_npc;
 	int enemy_id;
@@ -450,6 +452,15 @@ void wake_up_npc(int npc_id)
 	reserve_timer(npc_id, EV_MOVE, 500);
 }
 
+void natural_healing_start(int id)
+{
+	if (objects[id].is_natural_healing) return;
+	bool old_state = false;
+	if (false == atomic_compare_exchange_strong(&objects[id].is_natural_healing, &old_state, true))
+		return;
+	reserve_timer(id, EV_NATURAL_HEALING_FOR_PLAYERS, NATURAL_HEALING_TIME);
+}
+
 void npc_talk(int npc_id, int id)
 {
 	/*if (objects[npc_id].player.position.x != objects[id].player.position.x || objects[npc_id].player.position.y != objects[id].player.position.y)
@@ -471,7 +482,7 @@ void process_packet(int id, char* packet)
 		SESSION* moved_client = &objects[id];
 		CS_MOVE_PACKET* recv_packet = reinterpret_cast<CS_MOVE_PACKET*>(packet);
 		
-		if (moved_client->prev_move_time + 250 > recv_packet->move_time) return;		//1초 지나야 움직일 수 있음
+		if (moved_client->prev_move_time + PLAYER_MOVE_TIME > recv_packet->move_time) return;		//1초 지나야 움직일 수 있음
 
 		remove_from_sector_list(id);
 		
@@ -584,18 +595,19 @@ void process_packet(int id, char* packet)
 		for (auto& watcher : attacker_view_list) {
 			if (attack_position(id, watcher)) {
 				hit = true;
-				objects[watcher].player.decrease_hp(50);
+				dead = objects[watcher].player.decrease_hp(50);
 
-				if (is_npc(watcher)) {
+				if (is_npc(watcher)) {	//npc가 맞았으면 타겟을 때린놈으로 지정
 					objects[watcher].enemy_id = id;
 				}
+				else if(!dead){	//player일 때만 죽지 않았다면 피 회복
+					natural_healing_start(watcher);
+				}
 
-				if (objects[watcher].player.hp <= 0) {							//죽었을 때
-					dead = true;
+				if (dead) {							//죽었을 때
 					int defender_level = objects[watcher].player.level;
 					attacker->player.increase_exp(defender_level * 50);
 					attacker->send_stat_packet();
-
 					disconnect(watcher);
 				}
 				objects[watcher].send_stat_packet();							//맞은놈 스탯
@@ -615,17 +627,18 @@ void process_packet(int id, char* packet)
 
 		PI info = sql.find_by_name(recv_packet->name);
 		if (info.level == -1) {
-			cout << "새로 계정 생성\n";
+			//cout << "새로 계정 생성\n";
 			// 새로운 계정 생성
 			TI pos = randomly_spawn_player();
 			sql.insert_new_account(recv_packet->name, 1, 0, 100, 100, pos.x, pos.y);
 			info = sql.find_by_name(recv_packet->name);
 		}
-		else {
-			cout << "기존 계정 사용\n";
+		if (info.level == -1) {
+			disconnect(id);
+			break;
 		}
 		// 기존 계정 로드
-		memcpy(new_client->player.name, info.name, sizeof(new_client->player.name));
+		memcpy(&new_client->player.name, &recv_packet->name, sizeof(recv_packet->name));
 		new_client->player.direction = DIR_DOWN;
 		new_client->player.level = info.level;
 		new_client->player.exp = info.exp;
@@ -634,6 +647,14 @@ void process_packet(int id, char* packet)
 		new_client->player.position.x = info.x;
 		new_client->player.position.y = info.y;
 		//cout << info.name << " " << info.level << " " << info.exp << " " << info.hp << " " << info.x << " " << info.y << endl;
+
+		/*if (strcmp(new_client->player.name, "asd") == 0 || strcmp(new_client->player.name, "qwe") == 0) {
+			cout << "yup" << endl;
+			new_client->player.position.x = rand() % 10;
+			new_client->player.position.y = rand() % 10;
+		}
+		else
+			cout << "no" << endl;*/
 
 		new_client->send_login_info_packet();										//새로온 애한테 로그인 됐다고 전송
 		{
@@ -771,7 +792,21 @@ void work_thread()
 			AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 			break;
 		}
-		case OP_NPC: {
+		case OP_NATURAL_HEALING:
+		{
+			//cout << "Natural Heal" << endl;
+			bool is_full = objects[key].player.natural_healing();
+			objects[key].send_stat_packet();
+			if (is_full) { 
+				objects[key].is_natural_healing = false;
+				break; 
+			}
+			reserve_timer(key, EV_NATURAL_HEALING_FOR_PLAYERS, NATURAL_HEALING_TIME);
+			delete ex_over;
+			break;
+		}
+		case OP_NPC: 
+		{
 			EVENT_TYPE event_type = ex_over->event_type;
 			do_npc(static_cast<int>(key), event_type);
 			delete ex_over;
@@ -861,7 +896,6 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 
 	random_device rd;
 	default_random_engine dre(rd());
-	
 	
 	switch (event_type) {
 	case EV_MOVE:
@@ -972,15 +1006,17 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		for (auto& watcher : attacker_view_list) {
 			if (attack_position(npc_id, watcher)) {
 				hit = true;
-				objects[watcher].player.decrease_hp(50);
-				
+				dead = objects[watcher].player.decrease_hp(50);
+
+				if (!is_npc(watcher) && !dead) {	//맞은 놈이 player일때 죽지 않았다면 피 회복
+					natural_healing_start(watcher);
+				}
 				//objects[watcher].enemy_id = npc_id;		//npc 끼리도 적 가능
 
-				if (objects[watcher].player.hp <= 0) {							//죽었을 때
+				if (dead) {							//죽었을 때
 					if(this_npc->enemy_id == watcher)
 						this_npc->enemy_id = -1;
 					
-					dead = true;
 					int defender_level = objects[watcher].player.level;
 					this_npc->player.increase_exp(defender_level * 50);
 					disconnect(watcher);
@@ -1016,9 +1052,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			return;
 		}
 		
-		//this_npc->enemy_id = *old_view_list.begin();
 		if (this_npc->enemy_id == -1) {					//적이 없다면
-			//this_npc->enemy_id = *old_view_list.begin();
 			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
 			return;
 		}
@@ -1211,7 +1245,11 @@ void do_timer()
 		
 		OVER_EXP* over = new OVER_EXP();
 		over->event_type = event.type;
-		over->completion_type = OP_NPC;
+		if (EV_NATURAL_HEALING_FOR_PLAYERS == over->event_type)
+			over->completion_type = OP_NATURAL_HEALING;
+		else
+			over->completion_type = OP_NPC;
+		
 		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
 		
 		//cout << event.object_id << " position : " << objects[event.object_id].player.position.x << ", " << objects[event.object_id].player.position.y << " event : " << event.type << endl;
@@ -1226,6 +1264,9 @@ void do_timer()
 
 int main()
 {
+	//sql.delete_all();
+	//sql.show_all();
+	
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
 	global_server_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);

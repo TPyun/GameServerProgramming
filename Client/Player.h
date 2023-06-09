@@ -9,7 +9,7 @@ enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_ATTACK, ST_HIT };
 class Player
 {
 public:
-	TF curr_position{ -500, -500 };
+	TD curr_position{ -500, -500 };
 	TI arr_position{ -500, -500 };
 	
 
