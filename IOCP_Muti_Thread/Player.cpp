@@ -11,54 +11,58 @@ Player::~Player()
 
 void Player::move(TC direction)
 {
-	if (position.x + direction.x < 0 || position.x + direction.x >= W_WIDTH || position.y + direction.y < 0 || position.y + direction.y >= W_WIDTH) {
+	/*if (position.x + direction.x < 0 || position.x + direction.x >= W_WIDTH || position.y + direction.y < 0 || position.y + direction.y >= W_WIDTH) {
 		return;
-	}
+	}*/
 	position.x += direction.x;
 	position.y += direction.y;
 }
 
-void Player::key_check()
+void Player::key_check(bool do_move)
 {
 	switch (key_input) {
+	case KEY_UP_LEFT:
+		tc_direction = { -1, -1 };
+		direction = DIR_LEFT;
+		break;
 	case KEY_UP:
 		tc_direction = { 0, -1 };
 		direction = DIR_UP;
 		break;
-	case KEY_DOWN:
-		tc_direction = { 0, 1 };
-		direction = DIR_DOWN;
+	case KEY_UP_RIGHT:
+		tc_direction = { 1, -1 };
+		direction = DIR_RIGHT;
 		break;
 	case KEY_LEFT:
 		tc_direction = { -1, 0 };
 		direction = DIR_LEFT;
 		break;
+	case KEY_NONE:
+		tc_direction = { 0, 0 };
+		break;
 	case KEY_RIGHT:
 		tc_direction = { 1, 0 };
-		direction = DIR_RIGHT;
-		break;
-	case KEY_UP_LEFT:
-		tc_direction = { -1, -1 };
-		direction = DIR_LEFT;
-		break;
-	case KEY_UP_RIGHT:
-		tc_direction = { 1, -1 };
 		direction = DIR_RIGHT;
 		break;
 	case KEY_DOWN_LEFT:
 		tc_direction = { -1, 1 };
 		direction = DIR_LEFT;
 		break;
+	case KEY_DOWN:
+		tc_direction = { 0, 1 };
+		direction = DIR_DOWN;
+		break;
 	case KEY_DOWN_RIGHT:
 		tc_direction = { 1, 1 };
 		direction = DIR_RIGHT;
 		break;
 	}
-	move(tc_direction);
-	key_input = KEY_NONE;
+
+	if(do_move)
+		move(tc_direction);
 }
 
-void Player::dir_check()
+void Player::dir_check(bool do_move)
 {
 	switch (tc_direction.y) {
 	case -1:
@@ -76,7 +80,8 @@ void Player::dir_check()
 		direction = DIR_RIGHT;
 		break;
 	}
-	move(tc_direction);
+	if (do_move)
+		move(tc_direction);
 }
 
 void Player::increase_hp(int amount)
@@ -92,7 +97,7 @@ bool Player::decrease_hp(int amount)
 	bool dead = false;
 	hp -= amount;
 	if (hp <= 0) {
-		hp = 100;
+		hp = 0;
 		exp /= 2;
 		dead = true;
 	}
@@ -106,7 +111,7 @@ void Player::increase_exp(int amount)
 	if (exp >= max_exp) {
 		exp -= max_exp;
 		level++;
-		max_hp += 10;
+		max_exp = 100 * pow(2, level - 1);
 		hp = max_hp;
 	}
 }

@@ -11,6 +11,8 @@ Game::Game()
 	if (sfml_window == NULL) {
 		cout << "Could not create SFML window!" << endl;
 	}
+	sfml_window->setFramerateLimit(set_fps);
+
 	if (!sfml_font.loadFromFile("arial.ttf")) {
 		cout << "Could not load font!" << endl;
 	}
@@ -19,19 +21,24 @@ Game::Game()
 	//render();
 
 	//땅 텍스쳐
-	grass_texture.loadFromFile("Texture/grass1.png");
+	if(!grass_texture.loadFromFile("Texture/grass1.png"))
+		cout << "Could not load grass texture!" << endl;
 	grass_texture.setSmooth(true);
 	grass_sprite.setTexture(grass_texture);
 
 	//불 텍스쳐
-	fire_texture.loadFromFile("Texture/fire.png");
-	for (int i = 0; i < 4; i++) {
-		fire_sprite[i].setTexture(fire_texture);
-	}
+	if(!fire_texture.loadFromFile("Texture/fire.png"))
+		cout << "Could not load fire texture!" << endl;
+	fire_sprite.setTexture(fire_texture);
+
+	//돌 텍스쳐
+	if (!rock_texture.loadFromFile("Texture/Rock.png"))
+		cout << "Could not load Rock texture!" << endl;
+	rock_sprite.setTexture(rock_texture);
 	
 	//플레이어 텍스쳐
-	char player_tex_file[6][20]{ "Idle_new.png", "Walk_new.png", "Run_new.png", "Push_new.png", "Attack.png", "Hit_new.png" };
-	for (int act = 0; act < 6; act++) {
+	char player_tex_file[7][20]{ "Idle_new.png", "Walk_new.png", "Run_new.png", "Push_new.png", "Attack.png", "Idle_new.png", "Hit_new.png" };
+	for (int act = 0; act < 7; act++) {
 		char player_tex_root[30] = "Texture/Player/";
 		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
 			cout << "Image not loaded!" << endl;
@@ -40,6 +47,7 @@ Game::Game()
 		}
 	}
 
+	//사운드 로드
 	char sound_file[100][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav", "dead.wav"};
 	for (int type = 0; type < 10; type++) {
 		char sounds_root[30] = "Sounds/";
@@ -47,9 +55,9 @@ Game::Game()
 			cout << "Sound not loaded!" << endl;
 	}
 
-	sfml_window->setFramerateLimit(set_fps);
 	cout << "Press Tab to move another input box" << endl;
 	cout << "Press Enter to connect" << endl;
+	
 	initialize_main();
 }
 
@@ -113,7 +121,6 @@ void Game::timer()
 		if (current_time - player.second.sprite_time > 100) {
 			player.second.sprite_iter++;
 			player.second.sprite_time = current_time;
-			//cout << "Sprite iter: " << (int)player.second.sprite_iter << endl;
 		}
 		
 		if (player.second.chat_time != 0) {
@@ -129,18 +136,15 @@ void Game::timer()
 			player.second.curr_position.x = player.second.arr_position.x;
 			player.second.state = ST_IDLE;
 			move_x = false;
-			//stop_sound(SOUND_MOVE);
 		}
 		if (abs(player.second.arr_position.y - player.second.curr_position.y) < 0.05f) {
 			player.second.curr_position.y = player.second.arr_position.y;
 			player.second.state = ST_IDLE;
 			move_y = false;
-			//stop_sound(SOUND_MOVE);
 		}
 		
 		//lerp position in same velocity with time
 		if(move_x || move_y) {
-			//play_sound(SOUND_MOVE);
 			char sign_x = -1;
 			char sign_y = -1;
 			if (player.second.arr_position.x - player.second.curr_position.x == 0)
@@ -164,10 +168,23 @@ void Game::timer()
 			player.second.state = ST_MOVE;
 		}
 	
-		if (player.second.attack_time + 300 > current_time) {
-			player.second.state = ST_ATTACK;
+		if (player.second.forward_attack_time + 300 > current_time) {
+			player.second.state = ST_FORWARD_ATTACK;
+		}
+		else if (player.second.wide_attack_time + 500 > current_time) {
+			player.second.state = ST_WIDE_ATTACK;
 		}
 	}
+
+	if (abs(players[my_id].curr_hp - players[my_id].hp) < 1)
+		players[my_id].curr_hp = players[my_id].hp;
+	else
+		players[my_id].curr_hp = lerp(players[my_id].curr_hp, (float)players[my_id].hp, 0.05);
+
+	if (abs(players[my_id].curr_exp - players[my_id].exp) < 1)
+		players[my_id].curr_exp = players[my_id].exp;
+	else
+		players[my_id].curr_exp = lerp(players[my_id].curr_exp, (float)players[my_id].exp, 0.05);
 }
 
 void Game::render()
@@ -373,18 +390,33 @@ void Game::draw_game()
 	}
 	
 	// Draw the players in sorted order
-	for (int height = - VIEW_RANGE - 1; height <= VIEW_RANGE + 1; height++) {
+	for (int height = - VIEW_RANGE; height <= VIEW_RANGE; height++) {
 		for (const auto& player : players) {
+			
 			if ((int)player_position.y + height != player.second.arr_position.y) continue;
-			draw_sprite(player.first, sf::Color::White, 3); // Walk
-			TI related_pos = get_relative_location(player.second.curr_position);
-			string name(player.second.name);
-			draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
 
-			if (player.second.chat_time) {		//draw chat
-				draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
+			if (player.first < MAX_USER + MAX_NPC) {
+				draw_sprite(player.first, sf::Color::White, 3); // Walk
+				TI related_pos = get_relative_location(player.second.curr_position);
+				string name(player.second.name);
+				draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
+				if (player.second.chat_time)		//draw chat
+					draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
+			}
+			else if (player.first < MAX_USER + MAX_NPC + MAX_OBSTACLE) {
+				draw_obstacle(player.first);
 			}
 		}
+	}
+
+	//draw distance rect
+	if (distance_debug_mode) {
+		for (int x = 0; x < CLIENT_RANGE; x++) {
+			for (int y = 0; y < CLIENT_RANGE; y++) {
+				draw_sfml_rect({ BLOCK_SIZE * x,  BLOCK_SIZE * y }, { BLOCK_SIZE, BLOCK_SIZE }, sf::Color::Red, sf::Color::Transparent);
+			}
+		}
+		draw_sfml_rect({ WIDTH / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2), HEIGHT / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2) }, { BLOCK_SIZE * SECTOR_SIZE, BLOCK_SIZE * SECTOR_SIZE }, sf::Color::Blue, sf::Color::Transparent);
 	}
 	
 	draw_stat();
@@ -394,6 +426,19 @@ void Game::draw_game()
 		draw_chat_mode();
 }
 
+void Game::draw_obstacle(int id)
+{
+	Player* this_obstacle = &players[id];
+	TI position = get_relative_location(this_obstacle->curr_position);
+	TI size;
+	size.x = rock_texture.getSize().x;
+	size.y = rock_texture.getSize().y;
+
+	rock_sprite.setScale(0.3, 0.3);
+	rock_sprite.setPosition(position.x - (size.x / 2) * 0.3, position.y - (size.y / 2) * 0.3 - 20);
+	sfml_window->draw(rock_sprite);
+}
+
 void Game::draw_stat()
 {
 	//draw hp, level, exp gauge
@@ -401,10 +446,10 @@ void Game::draw_stat()
 	draw_sfml_text_s({ 10, 25 }, "EXP", sf::Color::White, 15);
 	draw_sfml_text_s({ 10, 40 }, "Level: " + to_string(players[my_id].level), sf::Color::White, 15);
 
-	int hp = players[my_id].hp;
+	int hp = players[my_id].curr_hp;
 	int max_hp = players[my_id].max_hp;
 	int level = players[my_id].level;
-	int exp = players[my_id].exp;
+	int exp = players[my_id].curr_exp;
 	
 	int hp_gauge = (int)(200.f * (float)hp / max_hp);
 	int exp_gauge = (200.f * (float)exp / (100.f * pow(2, level - 1)));
@@ -419,31 +464,45 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 {
 	Player* this_player = &players[id];
 	
-	TI position;
+	TI player_position;
 	if (id == my_id)
-		position = TI{ WIDTH / 2, HEIGHT / 2 };
+		player_position = TI{ WIDTH / 2, HEIGHT / 2 };
 	else
-		position = get_relative_location(this_player->curr_position);
-	TUC sprite_size{};
-	char sprite_length = 4;
+		player_position = get_relative_location(this_player->curr_position);
+	
+	TUC player_sprite_size{};
+	char player_sprite_length = 4;
 	char direction = this_player->direction;
 	unsigned char sprite_i = this_player->sprite_iter;
-	
-	player_sprite[this_player->state].setColor(color);
-	player_sprite[this_player->state].setScale(size, size * 1.1f);
 
 	switch (this_player->state) {
 	case ST_MOVE:
 	case ST_IDLE:
-		sprite_size = { 16, 24 };
+		player_sprite_size = { 16, 24 };
 		break;
-	case ST_ATTACK:
-		sprite_size = { 24, 24 };
+	case ST_FORWARD_ATTACK:
+		player_sprite_size = { 24, 24 };
+		break;
+	case ST_WIDE_ATTACK:
+		player_sprite_size = { 16, 24 };
+		int fire_sprite_length = 5;
+		int fire_sprite_size = 16;
+		fire_sprite.setScale(size, size);
+		fire_sprite.setTextureRect(sf::IntRect(sprite_i % fire_sprite_length * fire_sprite_size, 0, fire_sprite_size, fire_sprite_size));
+		for (int x = -1; x <= 1; x++) {
+			for (int y = -1; y <= 1; y++) {
+				if (x * y != 0) continue;
+				fire_sprite.setPosition(player_position.x + BLOCK_SIZE * x - (fire_sprite_size * size / 2), player_position.y + BLOCK_SIZE * y - (fire_sprite_size * size));
+				sfml_window->draw(fire_sprite);
+			}
+		}
 		break;
 	}
-
-	player_sprite[this_player->state].setPosition(position.x - (sprite_size.x * size) / 2 - 1, position.y - (sprite_size.y * size));
-	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i % sprite_length * sprite_size.x, sprite_size.y * (direction + 1), sprite_size.x, sprite_size.y));
+	
+	player_sprite[this_player->state].setColor(color);
+	player_sprite[this_player->state].setScale(size, size * 1.1f);
+	player_sprite[this_player->state].setPosition(player_position.x - (player_sprite_size.x * size) / 2, player_position.y - (player_sprite_size.y * size));
+	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i % player_sprite_length * player_sprite_size.x, player_sprite_size.y * (direction + 1), player_sprite_size.x, player_sprite_size.y));
 	sfml_window->draw(player_sprite[this_player->state]);
 }
 
@@ -600,6 +659,13 @@ void Game::game_handle_events()
 				chat_start = true;
 			}
 		}
+		
+		if (sfml_event.key.code == sf::Keyboard::B) {
+			if (distance_debug_mode)
+				distance_debug_mode = false;
+			else
+				distance_debug_mode = true;
+		}
 	}
 	if (key_input.up || key_input.down || key_input.left || key_input.right) {
 		move_flag = true;
@@ -632,7 +698,7 @@ void Game::draw_sfml_rect(TI position, TI size, sf::Color color, sf::Color fill_
 {
 	sf::RectangleShape rect(sf::Vector2f(size.x, size.y));
 	rect.setPosition(position.x, position.y);
-	rect.setOutlineThickness(1); // Set outline thickness to 1 pixel
+	rect.setOutlineThickness(3); // Set outline thickness to 1 pixel
 	rect.setOutlineColor(color); // Set outline color to white
 	rect.setFillColor(fill_color);
 	sfml_window->draw(rect);

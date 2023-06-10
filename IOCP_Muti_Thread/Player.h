@@ -4,7 +4,6 @@
 enum PERSONALITY {
 	PERSONALITY_NORMAL,
 	PERSONALITY_AGGRESSIVE,
-	PERSONALITY_FRIENDLY,
 };
 
 class Player
@@ -24,8 +23,8 @@ public:
 	Player();
 	~Player();
 	void move(TC);
-	void key_check();
-	void dir_check();
+	void key_check(bool do_move = true);
+	void dir_check(bool do_move = true);
 	void increase_hp(int amount);
 	bool decrease_hp(int amount);
 	void increase_exp(int amount);

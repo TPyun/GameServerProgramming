@@ -21,7 +21,6 @@ extern "C"
 }
 #pragma comment(lib, "lua54.lib")
 
-
 using namespace std;
 using namespace chrono;
 
@@ -78,7 +77,7 @@ public:
 OVER_EXP global_accept_over;
 SOCKET global_client_socket;
 SOCKET global_server_socket;
-TI randomly_spawn_player();
+TI random_spawn_location();
 void disconnect(int);
 void do_npc(int, EVENT_TYPE);
 atomic <int> player_count = 0;
@@ -157,12 +156,16 @@ public:
 	void insert_view_list(int);
 	void erase_view_list(int);
 };
-array<SESSION, MAX_USER + MAX_NPC> objects;
+array<SESSION, MAX_USER + MAX_NPC + MAX_OBSTACLE> objects;
 
-bool is_npc(int id) 
+char get_object_type(int id) 
 {
-	if (id >= MAX_USER) return true;
-	return false;
+	if (id < MAX_USER)
+		return 0;
+	else if (id < MAX_USER + MAX_NPC)
+		return 1;
+	else if (id < MAX_USER + MAX_NPC + MAX_OBSTACLE)
+		return 2;
 }
 
 void SESSION::send_login_ok_packet()
@@ -179,7 +182,7 @@ void SESSION::send_login_fail_packet()
 
 void SESSION::send_login_info_packet()
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 	
 	player_count.fetch_add(1);
@@ -198,7 +201,7 @@ void SESSION::send_login_info_packet()
 
 void SESSION::send_move_packet(int walker_id)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 	
 	SC_MOVE_OBJECT_PACKET packet;
@@ -209,20 +212,20 @@ void SESSION::send_move_packet(int walker_id)
 	do_send(&packet);
 }
 
-void SESSION::send_direction_packet(int watcher_id)
+void SESSION::send_direction_packet(int walker_id)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 	
 	SC_DIRECTION_PACKET packet;
-	packet.id = watcher_id;
-	packet.direction = objects[watcher_id].player.direction;
+	packet.id = walker_id;
+	packet.direction = objects[walker_id].player.direction;
 	do_send(&packet);
 }
 
 void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead, ATTACK_TYPE attack_type)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 	
 	SC_ATTACK_PACKET packet;
@@ -240,7 +243,7 @@ void SESSION::send_attack_packet(int attacker_id, bool hit, bool dead, ATTACK_TY
 
 void SESSION::send_in_packet(int entered_client_id)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 
 	SC_ADD_OBJECT_PACKET packet;
@@ -253,7 +256,7 @@ void SESSION::send_in_packet(int entered_client_id)
 
 void SESSION::send_out_packet(int left_one_id)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 	
 	SC_REMOVE_OBJECT_PACKET packet;
@@ -263,7 +266,7 @@ void SESSION::send_out_packet(int left_one_id)
 
 void SESSION::send_chat_packet(int talker_id, const char* message)
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 
 	SC_CHAT_PACKET packet;
@@ -274,7 +277,7 @@ void SESSION::send_chat_packet(int talker_id, const char* message)
 
 void SESSION::send_stat_packet()
 {
-	if (is_npc(this->id))
+	if (get_object_type(this->id) != 0)
 		return;
 
 	SC_STAT_CHANGE_PACKET packet;
@@ -316,10 +319,10 @@ void initialize_sector_list()
 	}
 }
 
-void remove_from_sector_list(int id)
+void remove_from_sector_list(int id, TI position)
 {
-	int x = objects[id].player.position.x / SECTOR_SIZE;
-	int y = objects[id].player.position.y / SECTOR_SIZE;
+	int x = position.x / SECTOR_SIZE;
+	int y = position.y / SECTOR_SIZE;
 	sector_mutex[x][y].lock();
 	sector_list[x][y].erase(id);
 	sector_mutex[x][y].unlock();
@@ -332,6 +335,24 @@ void add_to_sector_list(int id)
 	sector_mutex[x][y].lock();
 	sector_list[x][y].insert(id);
 	sector_mutex[x][y].unlock();
+}
+
+void move_sector(int id)
+{
+	SESSION* this_player = &objects[id];
+	TI prev_pos = this_player->player.position;
+	int prev_x = prev_pos.x / SECTOR_SIZE;
+	int prev_y = prev_pos.y / SECTOR_SIZE;
+	
+	this_player->player.key_check();
+	TI curr_pos = this_player->player.position;
+	int curr_x = curr_pos.x / SECTOR_SIZE;
+	int curr_y = curr_pos.y / SECTOR_SIZE;
+	
+	if (prev_x != curr_x || prev_y != curr_y) {
+		add_to_sector_list(id);
+		remove_from_sector_list(id, prev_pos);
+	}
 }
 
 void get_from_sector_list(int id, unordered_set<int>& sector)
@@ -352,6 +373,25 @@ void get_from_sector_list(int id, unordered_set<int>& sector)
 			sector_mutex[x + i][y + j].unlock();
 		}
 	}
+}
+
+bool collide_check(TI location)
+{
+	if (location.x < 0 || location.x >= W_WIDTH || location.y < 0 || location.y >= W_HEIGHT)
+		return true;
+	
+	int x = location.x / SECTOR_SIZE;
+	int y = location.y / SECTOR_SIZE;
+	
+	unordered_set<int> sector;
+	sector_mutex[x][y].lock();
+	sector.insert(sector_list[x][y].begin(), sector_list[x][y].end());
+	sector_mutex[x][y].unlock();
+
+	for (auto& id : sector) {
+		if (objects[id].player.position.x == location.x && objects[id].player.position.y == location.y) return true;
+	}
+	return false;
 }
 
 void show_all_sector_list()
@@ -377,7 +417,7 @@ void disconnect(int id)
 		else this_player->state = ST_FREE;
 	}
 
-	if (!is_npc(id)) {	//npc아니면 저장
+	if (get_object_type(id) == 0) {	//플레이어면 저장
 		sql_mtx.lock();
 		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
 		sql_mtx.unlock();
@@ -392,13 +432,13 @@ void disconnect(int id)
 		objects[client_in_view].erase_view_list(id);
 	}
 
-	remove_from_sector_list(id);
+	remove_from_sector_list(id, this_player->player.position);
 	this_player->is_natural_healing = false;
+	this_player->is_active_npc = false;
 
-	if (is_npc(id)) {
-		this_player->is_active_npc = false;
+	if (get_object_type(id) != 0)
 		return;
-	}
+
 	closesocket(this_player->socket);
 
 	player_count.fetch_sub(1);
@@ -407,18 +447,27 @@ void disconnect(int id)
 	}
 }
 
-TI randomly_spawn_player()
+TI random_spawn_location()
 {
 	random_device rd;
 	default_random_engine dre(rd());
 	uniform_int_distribution <int>spawn_location(0, W_WIDTH);
-	return TI { spawn_location(dre), spawn_location(dre) };
+	
+	bool collide = true;
+	TI location;
+
+	while (collide) {
+		location.x = spawn_location(dre);
+		location.y = spawn_location(dre);
+		collide = collide_check(location);
+	}
+	return location;
 }
 
 bool in_eyesight(int p1, int p2)
 {
-	if (abs(objects[p1].player.position.x - objects[p2].player.position.x) >= VIEW_RANGE) return false;
-	if (abs(objects[p1].player.position.y - objects[p2].player.position.y) >= VIEW_RANGE) return false;
+	if (abs(objects[p1].player.position.x - objects[p2].player.position.x) > VIEW_RANGE) return false;
+	if (abs(objects[p1].player.position.y - objects[p2].player.position.y) > VIEW_RANGE) return false;
 	return true;
 }
 
@@ -488,14 +537,50 @@ void natural_healing_start(int id)
 void npc_talk(int npc_id, int id)
 {
 	/*if (objects[npc_id].player.position.x != objects[id].player.position.x || objects[npc_id].player.position.y != objects[id].player.position.y)
-		return;*/
-	/*objects[npc_id].lua_mtx.lock();
+		return;
+	objects[npc_id].lua_mtx.lock();
 	auto L = objects[npc_id].lua;
 	lua_getglobal(L, "event_player_move");
 	lua_pushnumber(L, id);
 	lua_pcall(L, 1, 0, 0);
 	lua_pop(L, 1);
 	objects[npc_id].lua_mtx.unlock();*/
+}
+
+TI key_to_dir(char key)
+{
+	TI dir{};
+	switch (key)
+	{
+	case KEY_UP_LEFT:
+		dir = { -1, -1 };
+		break;
+	case KEY_UP:
+		dir = { 0, -1 };
+		break;
+	case KEY_UP_RIGHT:
+		dir = { 1, -1 };
+		break;
+	case KEY_LEFT:
+		dir = { -1, 0 };
+		break;
+	case KEY_NONE:
+		dir = { 0, 0 };
+		break;
+	case KEY_RIGHT:
+		dir = { 1, 0 };
+		break;
+	case KEY_DOWN_LEFT:
+		dir = { -1, 1 };
+		break;
+	case KEY_DOWN:
+		dir = { 0, 1 };
+		break;
+	case KEY_DOWN_RIGHT:
+		dir = { 1, 1 };
+		break;
+	}
+	return dir;
 }
 
 void process_packet(int id, char* packet)
@@ -508,14 +593,37 @@ void process_packet(int id, char* packet)
 		
 		if (moved_client->prev_move_time + PLAYER_MOVE_TIME > recv_packet->move_time) return;		//1초 지나야 움직일 수 있음
 
-		remove_from_sector_list(id);
+		//충돌검사
+		TI direction = key_to_dir(recv_packet->direction);
+		if (collide_check({ direction.x + moved_client->player.position.x, direction.y + moved_client->player.position.y })) {
+			//충돌해도 이동하는 방향쪽으로 방향은 전환함
+			if (moved_client->player.tc_direction.x != direction.x || moved_client->player.tc_direction.y != direction.y) {
+
+				moved_client->prev_move_time = recv_packet->move_time;
+				moved_client->send_move_packet(id);								//본인 움직임 보냄
+
+				moved_client->view_list_mtx.lock();
+				unordered_set<int> view_list = moved_client->view_list;
+				moved_client->view_list_mtx.unlock();
+
+				moved_client->player.key_input = recv_packet->direction;
+				moved_client->player.key_check(false);
+				moved_client->send_direction_packet(id);
+				for (auto& watcher : view_list) {
+					objects[watcher].send_direction_packet(id);
+				}
+				return;
+			}
+			return;
+		}
 		
+		TI prev_pos = moved_client->player.position;
 		moved_client->player.key_input = recv_packet->direction;
-		moved_client->player.key_check();
+		move_sector(id);
+		
 		moved_client->prev_move_time = recv_packet->move_time;
 		moved_client->send_move_packet(id);								//본인 움직임 보냄
 		
-		add_to_sector_list(id);
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(id, list_of_sector);						//본인이 보는 섹터에 있는 클라이언트들을 불러옴
 
@@ -544,14 +652,14 @@ void process_packet(int id, char* packet)
 				objects[new_one].send_direction_packet(id);
 				moved_client->send_direction_packet(new_one);
 				
-				if (is_npc(new_one)) {									//NPC라면 깨우기
+				if (get_object_type(new_one) == 1) {									//NPC라면 깨우기
 					wake_up_npc(new_one);
 				}
 			}
 			else
 				objects[new_one].send_move_packet(id);						//기존에 있었으면 무브
 
-			if (is_npc(new_one)) {
+			if (get_object_type(new_one) == 1) {
 				npc_talk(new_one, id);
 			}
 		}
@@ -572,6 +680,9 @@ void process_packet(int id, char* packet)
 	{
 		SESSION* watcher = &objects[id];
 		CS_DIRECTION_PACKET* recv_packet = reinterpret_cast<CS_DIRECTION_PACKET*>(packet);
+		
+		if (watcher->player.direction == recv_packet->direction)
+			return;
 
 		watcher->player.direction = recv_packet->direction;
 		switch (watcher->player.direction) {
@@ -613,29 +724,19 @@ void process_packet(int id, char* packet)
 			break;
 		}
 
-		unordered_set<int> attacker_view_list;
-		unordered_set<int> list_of_sector;
-		get_from_sector_list(id, list_of_sector);
-		for (auto& client_in_sector : list_of_sector) {
-			//{
-			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
-			//	if (objects[client_in_sector].state != ST_INGAME) continue;
-			//}
-			if (client_in_sector == id) continue;
-			if (in_eyesight(id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
-				attacker_view_list.insert(client_in_sector);								//new list 채우기
-			}
-		}
+		attacker->view_list_mtx.lock();
+		unordered_set<int> attacker_view_list = attacker->view_list;
+		attacker->view_list_mtx.unlock();
 		
 		//맞았는지 안맞았는지 판단하고 그에 맞는 패킷 보내기
 		bool hit = false;
 		bool dead = false;
 		for (auto& watcher : attacker_view_list) {
-			if (attack_position(id, watcher, recv_packet->attack_type)) {
+			if (attack_position(id, watcher, static_cast<ATTACK_TYPE>(recv_packet->attack_type))) {
 				hit = true;
 				dead = objects[watcher].player.decrease_hp(damage);
 
-				if (is_npc(watcher)) {	//npc가 맞았으면 타겟을 때린놈으로 지정
+				if (get_object_type(watcher) == 1) {	//npc가 맞았으면 타겟을 때린놈으로 지정
 					objects[watcher].enemy_id = id;
 				}
 				else if(!dead){	//player일 때만 죽지 않았다면 피 회복
@@ -653,9 +754,9 @@ void process_packet(int id, char* packet)
 		}
 
 		for (auto& watcher : attacker_view_list) {
-			objects[watcher].send_attack_packet(id, hit, dead, recv_packet->attack_type);		//공격 모션
+			objects[watcher].send_attack_packet(id, hit, dead, static_cast<ATTACK_TYPE>(recv_packet->attack_type));		//공격 모션
 		}
-		attacker->send_attack_packet(id, hit, dead, recv_packet->attack_type);					//맞는 소리
+		attacker->send_attack_packet(id, hit, dead, static_cast<ATTACK_TYPE>(recv_packet->attack_type));					//맞는 소리
 	}
 	break;
 	case CS_LOGIN:
@@ -670,7 +771,7 @@ void process_packet(int id, char* packet)
 		if (info.level == -1) {
 			//cout << "새로 계정 생성\n";
 			// 새로운 계정 생성
-			TI pos = randomly_spawn_player();
+			TI pos = random_spawn_location();
 			sql_mtx.lock();
 			sql.insert_new_account(recv_packet->name, 1, 0, 100, 100, pos.x, pos.y);
 			info = sql.find_by_name(recv_packet->name);
@@ -702,10 +803,10 @@ void process_packet(int id, char* packet)
 		natural_healing_start(id);			//피 부족하면 채우기
 
 		for (auto& old_client : objects) {
-			{
-				//lock_guard<mutex> m(old_client.state_mtx);
-				if (old_client.state != ST_INGAME) continue;
-			}
+			//{
+			//	//lock_guard<mutex> m(old_client.state_mtx);
+			//	if (old_client.state != ST_INGAME) continue;
+			//}
 			if (id == old_client.id) continue;
 
 			if (in_eyesight(id, old_client.id)) {
@@ -720,7 +821,7 @@ void process_packet(int id, char* packet)
 				new_client->send_direction_packet(old_client.id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
 				old_client.send_direction_packet(id);						//시야 안에 클라한테 새로온 애 방향 전송.
 				
-				if (is_npc(old_client.id)) {							//NPC라면 깨우기
+				if (get_object_type(old_client.id) == 1) {							//NPC라면 깨우기
 					wake_up_npc(old_client.id);
 				}
 			}
@@ -895,14 +996,13 @@ void spawn_npc()
 {
 	random_device rd;
 	default_random_engine dre(rd());
-	uniform_int_distribution <int>random_personality(0, 2);
+	uniform_int_distribution <int>random_personality(0, 1);
 	
 	auto start_t = chrono::system_clock::now();
 	for (int npc_id = MAX_USER; npc_id < MAX_USER + MAX_NPC; ++npc_id) {
 		objects[npc_id].id = npc_id;
-		objects[npc_id].view_list.clear();
 		objects[npc_id].state = ST_INGAME;
-		objects[npc_id].player.position = randomly_spawn_player();
+		objects[npc_id].player.position = random_spawn_location();
 		objects[npc_id].player.personality = static_cast<PERSONALITY>(random_personality(dre));
 		objects[npc_id].enemy_id = -1;
 		sprintf_s(objects[npc_id].player.name, "NPC %d", npc_id);
@@ -920,11 +1020,11 @@ void spawn_npc()
 		//lua_getglobal(L, "set_uid");
 		//lua_pushnumber(L, npc_id);
 		//lua_pcall(L, 1, 0, 0);
-		//// lua_pop(L, 1);// eliminate set_uid from stack after call
+		//lua_pop(L, 1);// eliminate set_uid from stack after call
 
-		//lua_register(L, "API_SendMessage", API_SendMessage);
 		//lua_register(L, "API_get_x", API_get_x);
 		//lua_register(L, "API_get_y", API_get_y);
+		//lua_register(L, "API_SendMessage", API_SendMessage);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
@@ -936,6 +1036,8 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 	SESSION* this_npc = &objects[npc_id];
 
 	if (!this_npc->is_active_npc)
+		return;
+	if (this_npc->player.hp <= 0)
 		return;
 
 	random_device rd;
@@ -955,21 +1057,27 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			this_npc->is_active_npc = false;
 			return;
 		}
-
-		remove_from_sector_list(npc_id);
 		
 		uniform_int_distribution <int>random_direction(1, 8);
 		this_npc->player.key_input = random_direction(dre);
 
-		this_npc->player.key_check();
-		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+		//충돌검사
+		TI direction = key_to_dir(this_npc->player.key_input);
+		if (collide_check({ direction.x + this_npc->player.position.x, direction.y + this_npc->player.position.y })) {
+			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
+			return;
+		}
+		TI prev_pos = this_npc->player.position;
 
-		add_to_sector_list(npc_id);
+		move_sector(npc_id);
+
+		//this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
 
 		for (auto& client_in_sector : list_of_sector) {
-			if (is_npc(client_in_sector)) continue;
+			if (get_object_type(client_in_sector) != 0) continue;
 			//{
 			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
 			//	if (objects[client_in_sector].state != ST_INGAME) continue;
@@ -1048,6 +1156,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
 			//	if (objects[client_in_sector].state != ST_INGAME) continue;
 			//}
+			if (client_in_sector >= MAX_USER + MAX_NPC) continue;
 			if (client_in_sector == npc_id) continue;
 			if (in_eyesight(npc_id, client_in_sector)) {						//현재 시야 안에 있는 클라이언트
 				attacker_view_list.insert(client_in_sector);								//new list 채우기
@@ -1062,7 +1171,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 				hit = true;
 				dead = objects[watcher].player.decrease_hp(damage);
 
-				if (!is_npc(watcher) && !dead) {	//맞은 놈이 player일때 죽지 않았다면 피 회복
+				if (get_object_type(watcher) == 0 && !dead) {	//맞은 놈이 player일때 죽지 않았다면 피 회복
 					natural_healing_start(watcher);
 				}
 				//objects[watcher].enemy_id = npc_id;		//npc 끼리도 적 가능
@@ -1087,6 +1196,16 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 		if (attacker_view_list.find(this_npc->enemy_id) != attacker_view_list.end()) {		//적이 있으면 계속 따라가기
 			//cout << npc_id << " 적 발견\n";
 			reserve_timer(npc_id, EV_FOLLOW, NPC_MOVE_TIME);
+			return;
+		}
+
+		this_npc->view_list_mtx.lock();
+		unordered_set<int> old_view_list = this_npc->view_list;			//이전 뷰 리스트 복사
+		this_npc->view_list_mtx.unlock();
+
+		if (old_view_list.size() == 0) {
+			//cout << npc_id << " 잔다 NPC\n";
+			this_npc->is_active_npc = false;
 			return;
 		}
 		reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
@@ -1147,31 +1266,56 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			return;
 		}
 		TI next_position = turn_astar(my_position, enemy_position, diff);
+		
+		this_npc->player.tc_direction = { 0, 0 };
+		if (abs(next_position.x - my_position.x) + abs(next_position.y - my_position.y) <= 2) {
+			if (my_position.y > next_position.y) {
+				this_npc->player.tc_direction.y = -1;
+			}
+			else if (my_position.y < next_position.y) {
+				this_npc->player.tc_direction.y = 1;
+			}
+			else if (my_position.x > next_position.x) {
+				this_npc->player.tc_direction.x = -1;
+			}
+			else if (my_position.x < next_position.x) {
+				this_npc->player.tc_direction.x = 1;
+			}
+		}
+		else {
+			if (my_position.y > next_position.y) {
+				this_npc->player.tc_direction.y = -1;
+			}
+			if (my_position.y < next_position.y) {
+				this_npc->player.tc_direction.y = 1;
+			}
+			if (my_position.x > next_position.x) {
+				this_npc->player.tc_direction.x = -1;
+			}
+			if (my_position.x < next_position.x) {
+				this_npc->player.tc_direction.x = 1;
+			}
+		}
 
-		remove_from_sector_list(npc_id);
-		
-		if (my_position.y > next_position.y) {
-			this_npc->player.tc_direction.y = -1;
-		}
-		if (my_position.y < next_position.y) {
-			this_npc->player.tc_direction.y = 1;
-		}
-		if (my_position.x > next_position.x) {
-			this_npc->player.tc_direction.x = -1;
-		}
-		if (my_position.x < next_position.x) {
-			this_npc->player.tc_direction.x = 1;
-		}
-		
+		TI prev_pos = this_npc->player.position;
+		int prev_x = prev_pos.x / SECTOR_SIZE;
+		int prev_y = prev_pos.y / SECTOR_SIZE;
 		this_npc->player.dir_check();
-		this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+		TI curr_pos = this_npc->player.position;
+		int curr_x = curr_pos.x / SECTOR_SIZE;
+		int curr_y = curr_pos.y / SECTOR_SIZE;
+		if (prev_x != curr_x || prev_y != curr_y) {
+			add_to_sector_list(npc_id);
+			remove_from_sector_list(npc_id, prev_pos);
+		}
 
-		add_to_sector_list(npc_id);
+		//this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
+
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
 
 		for (auto& client_in_sector : list_of_sector) {
-			if (is_npc(client_in_sector)) continue;
+			if (get_object_type(client_in_sector) != 0) continue;
 			//{
 			//	//lock_guard<mutex> m(objects[client_in_sector].state_mtx);
 			//	if (objects[client_in_sector].state != ST_INGAME) continue;
@@ -1317,10 +1461,24 @@ void do_timer()
 	}
 }
 
+void locate_obstacles()
+{
+	auto start_t = chrono::system_clock::now();
+	for (int obstacle_id = MAX_USER + MAX_NPC; obstacle_id < MAX_USER + MAX_NPC + MAX_OBSTACLE; ++obstacle_id) {
+		objects[obstacle_id].id = obstacle_id;
+		//objects[obstacle_id].state = ST_INGAME;
+		objects[obstacle_id].player.position = random_spawn_location();
+		add_to_sector_list(obstacle_id);
+	}
+	auto end_t = chrono::system_clock::now();
+	cout << "장애물 배치 완료 : " << chrono::duration_cast<chrono::milliseconds>(end_t - start_t).count() << "ms\n";
+
+}
+
 int main()
 {
 	//sql.delete_all();
-	sql.show_all();
+	//sql.show_all();
 	
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
@@ -1346,6 +1504,7 @@ int main()
 	AcceptEx(global_server_socket, global_client_socket, global_accept_over.data, 0, addr_size + 16, addr_size + 16, 0, &global_accept_over.over);
 	
 	initialize_sector_list();
+	locate_obstacles();
 	spawn_npc();
 	thread timer{ do_timer };
 	

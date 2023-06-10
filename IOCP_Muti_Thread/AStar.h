@@ -41,7 +41,7 @@ vector<Node*> aStar(Node** grid, const Node& start, const Node& goal, int width,
 		Node* current = openNodes.top();
 		openNodes.pop();
 		
-		if (current->x == goal.x && current->y == goal.y) {
+		if (abs(current->x - goal.x) + abs(current->y - goal.y) < 2) {
 			vector<Node*> path;
 			Node* node = current;
 			while (node != nullptr) {
@@ -58,38 +58,21 @@ vector<Node*> aStar(Node** grid, const Node& start, const Node& goal, int width,
 		if (current->y > 0 && !grid[current->x][current->y - 1].obstacle) {
 			neighbors.push_back(&grid[current->x][current->y - 1]);
 		}
-		//Top left neighbor
-		if (current->x > 0 && current->y > 0 && !grid[current->x - 1][current->y - 1].obstacle) {
-			neighbors.push_back(&grid[current->x - 1][current->y - 1]);
-		}
-		// Top right neighbor
-		if (current->x < width - 1 && current->y > 0 && !grid[current->x + 1][current->y - 1].obstacle) {
-			neighbors.push_back(&grid[current->x + 1][current->y - 1]);
-		}
 		// Left neighbor
 		if (current->x > 0 && !grid[current->x - 1][current->y].obstacle) {
 			neighbors.push_back(&grid[current->x - 1][current->y]);
 		}
 		// Right neighbor
-		if (current->x < width - 1 && !grid[current->x + 1][current->y].obstacle) {
+		if (current->x  < width - 1 && !grid[current->x + 1][current->y].obstacle) {
 			neighbors.push_back(&grid[current->x + 1][current->y]);
 		}
 		// Bottom neighbor
 		if (current->y < height - 1 && !grid[current->x][current->y + 1].obstacle) {
 			neighbors.push_back(&grid[current->x][current->y + 1]);
 		}
-		// Bottom left neighbor
-		if (current->x > 0 && current->y < height - 1 && !grid[current->x - 1][current->y + 1].obstacle) {
-			neighbors.push_back(&grid[current->x - 1][current->y + 1]);
-		}
-		// Bottom right neighbor
-		if (current->x < width - 1 && current->y < height - 1 && !grid[current->x + 1][current->y + 1].obstacle) {
-			neighbors.push_back(&grid[current->x + 1][current->y + 1]);
-		}
 
 		for (Node* neighbor : neighbors) {
 			int gCost = current->g + 1;
-
 			if (!visited[neighbor->x][neighbor->y] || gCost < neighbor->g) {
 				neighbor->g = gCost;
 				neighbor->h = neighbor->calculateHeuristic(goal);
@@ -132,8 +115,8 @@ TI turn_astar(TI start_point, TI target_point, TI diff)
 		}
 	}
 
-	//// Add obstacles to the grid
-	//grid[2][3].obstacle = true;
+	// Add obstacles to the grid
+	//grid[target_point.x][target_point.y].obstacle = true;
 	//grid[3][3].obstacle = true;
 	//grid[4][3].obstacle = true;
 	
@@ -143,9 +126,8 @@ TI turn_astar(TI start_point, TI target_point, TI diff)
 
 	// Run the A* algorithm
 	vector<Node*> path = aStar(grid, start, target, width, height);
-	if (path.size() <= 1)
-	{
-		cout << "같은 위치\n";
+	if (path.size() < 1) {
+		//cout << "같은 위치\n";
 		return { -1,-1};
 	}
 
@@ -158,10 +140,12 @@ TI turn_astar(TI start_point, TI target_point, TI diff)
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 		system("cls");
 	}*/
+	
 	auto next_point = path.rbegin();
 	Node* node = *++next_point;
-	//cout << "Next point: " << node->x << " " << node->y << endl;
+
 	TI r_next_point = { node->x, node->y };
+	
 	// Clean up memory
 	for (int x = 0; x < width; ++x) {
 		delete[] grid[x];

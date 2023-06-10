@@ -5,13 +5,12 @@
 #include <chrono>
 #include "../Protocol.h"
 
-enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_ATTACK, ST_HIT };
+enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_FORWARD_ATTACK, ST_WIDE_ATTACK, ST_HIT };
 class Player
 {
 public:
 	TD curr_position{ -500, -500 };
 	TI arr_position{ -500, -500 };
-	
 
 	char direction = DIR_DOWN;
 	State state = ST_IDLE;
@@ -21,13 +20,16 @@ public:
 	int id = -1;
 	char name[30]{};
 	
+	float curr_hp{};
 	int hp{};
 	int max_hp{};
+	float curr_exp{};
 	int exp{};
 	int level{};
 	
 	unsigned int moved_time{};
-	unsigned int attack_time{};
+	unsigned int forward_attack_time{};
+	unsigned int wide_attack_time{};
 	unsigned int chat_time{};
 	std::string chat;
 

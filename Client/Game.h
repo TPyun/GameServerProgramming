@@ -58,6 +58,7 @@ private:
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
 	void draw_sprite(int, sf::Color, char);
+	void draw_obstacle(int);
 	void timer();
 	
 	void draw_main();
@@ -74,13 +75,19 @@ private:
 	sf::Font sfml_font;
 	sf::Event sfml_event{};
 	sf::Text sfml_text;
-	sf::Texture player_texture[6];
-	sf::Texture grass_texture;
-	sf::Texture fire_texture;
-	sf::Sprite grass_sprite;
-	sf::Sprite player_sprite[6];
-	sf::Sprite fire_sprite[5];
 
+	sf::Texture player_texture[7];
+	sf::Sprite player_sprite[7];
+
+	sf::Texture grass_texture;
+	sf::Sprite grass_sprite;
+	
+	sf::Texture fire_texture;
+	sf::Sprite fire_sprite;
+	
+	sf::Texture rock_texture;
+	sf::Sprite rock_sprite;
+	
 	sf::SoundBuffer sound_buffer[100];
 	sf::Sound sounds[100];
 	
@@ -89,6 +96,7 @@ private:
 	bool information_mode = false;
 	bool chat_mode = false;
 	bool chat_start = false;
+	bool distance_debug_mode = false;
 	
 	int input_height = 130;
 	bool input_warning = false;

@@ -12,9 +12,10 @@ constexpr int NAME_SIZE = 20;
 constexpr int BUFSIZE = 200;
 constexpr int MAX_USER = 1'5000;
 constexpr int MAX_NPC = 20'0000;
+constexpr int MAX_OBSTACLE = 50'0000;
 
-constexpr int WIDTH = 735;	//Client
-constexpr int HEIGHT = 735;	//Client
+constexpr int WIDTH = 760;	//Client
+constexpr int HEIGHT = 760;	//Client
 
 constexpr int W_WIDTH = 2000;		//Size of Map
 constexpr int W_HEIGHT = 2000;
@@ -25,11 +26,11 @@ constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
 constexpr int SECTOR_NUM = W_WIDTH / SECTOR_SIZE + 1;	//Server
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
-constexpr int PLAYER_MOVE_TIME = 300;	//모두 1000으로 바꿔야함
-constexpr int NPC_MOVE_TIME = 300;
-constexpr int NATURAL_HEALING_TIME = 300;
-constexpr int PLAYER_ATTACK_TIME = 300;
-constexpr int NPC_ATTACK_TIME = 300;
+constexpr int PLAYER_MOVE_TIME = 500;	//모두 1000으로 바꿔야함
+constexpr int NPC_MOVE_TIME = 500;
+constexpr int NATURAL_HEALING_TIME = 500;
+constexpr int PLAYER_ATTACK_TIME = 500;
+constexpr int NPC_ATTACK_TIME = 500;
 
 constexpr int WIDE_ATTACK_DAMAGE = 20;
 constexpr int FORWARD_ATTACK_DAMAGE = 50;
@@ -55,8 +56,10 @@ constexpr char SC_STAT_CHANGE = 7;
 constexpr char SC_ATTACK = 8;
 constexpr char SC_DIRECTION = 9;
 
-enum Key { KEY_NONE, KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_UP_LEFT, KEY_UP_RIGHT, KEY_DOWN_LEFT, KEY_DOWN_RIGHT };
+enum Key { KEY_UP_LEFT, KEY_UP, KEY_UP_RIGHT, KEY_LEFT, KEY_NONE, KEY_RIGHT, KEY_DOWN_LEFT, KEY_DOWN, KEY_DOWN_RIGHT };
 enum Direction { DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT };
+enum ATTACK_TYPE { ATTACK_FORWARD, ATTACK_WIDE };
+enum HIT_TYPE { HIT_TYPE_NONE, HIT_TYPE_HIT, HIT_TYPE_DEAD };
 
 typedef struct two_ints {
 	int x;
@@ -140,12 +143,11 @@ struct CS_LOGOUT_PACKET {
 	char type = CS_LOGOUT;
 };
 
-enum ATTACK_TYPE{ ATTACK_FORWARD, ATTACK_WIDE};
 struct CS_ATTACK_PACKET {
 	unsigned short size = sizeof(CS_ATTACK_PACKET);
 	char type = CS_ATTACK;
 
-	ATTACK_TYPE attack_type;
+	char attack_type;
 	unsigned int time;
 };
 
@@ -222,15 +224,14 @@ struct SC_STAT_CHANGE_PACKET {
 	int	level;
 };
 
-enum HIT_TYPE{ HIT_TYPE_NONE, HIT_TYPE_HIT, HIT_TYPE_DEAD};
 struct SC_ATTACK_PACKET {
 	unsigned short size = sizeof(SC_ATTACK_PACKET);
 	char type = SC_ATTACK;
 
 	int id;
 	unsigned short damage;
-	HIT_TYPE hit_type;
-	ATTACK_TYPE attack_type;
+	char hit_type;
+	char attack_type;
 };
 
 struct SC_DIRECTION_PACKET {

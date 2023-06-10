@@ -216,7 +216,7 @@ void process_packet(char* packet)
 		game->players_mtx.lock();
 		game->players[client_id].direction = recv_packet->direction;
 		game->players_mtx.unlock();
-		//cout << "client_id: " << client_id << " direction: " << recv_packet->direction << endl;
+		//cout << "client_id: " << client_id << " direction: " << (int)recv_packet->direction << endl;
 	}
 	break;
 	case SC_ATTACK:
@@ -225,8 +225,17 @@ void process_packet(char* packet)
 		int client_id = recv_packet->id;
 
 		game->players_mtx.lock();
-		game->players[client_id].attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		game->players[client_id].sprite_iter = 0;
+
+		switch (recv_packet->attack_type) {
+		case ATTACK_FORWARD:
+			game->players[client_id].forward_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+			break;
+			
+		case ATTACK_WIDE:
+			game->players[client_id].wide_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+			break;
+		}
 		game->players_mtx.unlock();
 		
 		switch (recv_packet->hit_type)
