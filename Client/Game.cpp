@@ -7,7 +7,7 @@ using namespace chrono;
 
 Game::Game()
 {
-	sfml_window = new sf::RenderWindow(sf::VideoMode(WIDTH, HEIGHT), "SFML window");
+	sfml_window = new sf::RenderWindow(sf::VideoMode(WIDTH, HEIGHT), "2D Game");
 	if (sfml_window == NULL) {
 		cout << "Could not create SFML window!" << endl;
 	}
@@ -218,13 +218,14 @@ void Game::draw_main()
 	draw_sfml_text(TI{ 100, 330 }, (char*)Name, sf::Color(200, 200, 200), 17);
 	draw_sfml_text(TI{ 100, 430 }, (char*)"Press Enter", sf::Color(200, 200, 200), 17);
 	
+
+	if (input_warning) {
+		draw_sfml_text(TI{ 100, 550 }, (char*)"Please Fill All Fields", sf::Color(200, 0, 0), 17);
+		//connect_warning = false;
+	}
 	if (connect_warning) {
 		draw_sfml_text(TI{ 100, 500 }, (char*)"Connection Fail", sf::Color(180, 0, 0), 17);
-		input_warning = false;
-	}
-	if (input_warning) {
-		draw_sfml_text(TI{ 100, 500 }, (char*)"Please Fill All Fields", sf::Color(200, 0, 0), 17);
-		connect_warning = false;
+		//input_warning = false;
 	}
 }
 
