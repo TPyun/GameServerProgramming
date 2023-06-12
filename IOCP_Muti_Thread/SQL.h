@@ -38,5 +38,5 @@ public:
 	void insert_new_account(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y);
 	void save_info(char* name, int level, int exp, int hp, int max_hp, int pos_x, int pos_y);
 	void delete_all();
-	PI show_all();
+	void show_all();
 };

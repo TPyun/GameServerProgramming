@@ -160,7 +160,7 @@ void SQL::delete_all()
     else cout << "SQL Statement Error" << endl;
 }
 
-PI SQL::show_all()
+void SQL::show_all()
 {
     retcode = SQLAllocHandle(SQL_HANDLE_STMT, hdbc, &hstmt);
     if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {

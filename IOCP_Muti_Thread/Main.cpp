@@ -389,6 +389,7 @@ bool collide_check(TI location)
 	sector_mutex[x][y].unlock();
 
 	for (auto& id : sector) {
+		if (get_object_type(id) != 2) continue;
 		if (objects[id].player.position.x == location.x && objects[id].player.position.y == location.y) return true;
 	}
 	return false;
@@ -534,17 +535,29 @@ void natural_healing_start(int id)
 	reserve_timer(id, EV_NATURAL_HEALING_FOR_PLAYERS, NATURAL_HEALING_TIME);
 }
 
+void error(lua_State* L, const char* fmt, ...) {
+	va_list argp;
+	va_start(argp, fmt);
+	vfprintf(stderr, fmt, argp);
+	va_end(argp);
+	lua_close(L);
+	exit(EXIT_FAILURE);
+}
+
 void npc_talk(int npc_id, int id)
 {
-	/*if (objects[npc_id].player.position.x != objects[id].player.position.x || objects[npc_id].player.position.y != objects[id].player.position.y)
-		return;
+	
 	objects[npc_id].lua_mtx.lock();
-	auto L = objects[npc_id].lua;
+	/*if (objects[npc_id].player.position.x != objects[id].player.position.x || objects[npc_id].player.position.y != objects[id].player.position.y) {
+		objects[npc_id].lua_mtx.unlock();
+		return;
+	}*/
+	lua_State* L = objects[npc_id].lua;
 	lua_getglobal(L, "event_player_move");
-	lua_pushnumber(L, id);
-	lua_pcall(L, 1, 0, 0);
-	lua_pop(L, 1);
-	objects[npc_id].lua_mtx.unlock();*/
+	lua_pushnumber(L, id);	//함수 인자 넣기
+	lua_pcall(L, 1, 0, 0);	//함수 호출
+	//lua_pop(L, 1);
+	objects[npc_id].lua_mtx.unlock();
 }
 
 TI key_to_dir(char key)
@@ -802,27 +815,32 @@ void process_packet(int id, char* packet)
 
 		natural_healing_start(id);			//피 부족하면 채우기
 
-		for (auto& old_client : objects) {
+		add_to_sector_list(id);
+
+		unordered_set<int> list_of_sector;
+		get_from_sector_list(id, list_of_sector);
+
+		for (auto& old_client_id : list_of_sector) {
 			//{
 			//	//lock_guard<mutex> m(old_client.state_mtx);
 			//	if (old_client.state != ST_INGAME) continue;
 			//}
-			if (id == old_client.id) continue;
+			SESSION* old_client = &objects[old_client_id];
+			if (id == old_client->id) continue;
 
-			if (in_eyesight(id, old_client.id)) {
-				add_to_sector_list(id);
+			if (in_eyesight(id, old_client->id)) {
 				
-				old_client.insert_view_list(id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
-				new_client->insert_view_list(old_client.id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
+				old_client->insert_view_list(id);				//시야 안에 들어온 클라의 View list에 새로온 놈 추가
+				new_client->insert_view_list(old_client->id);	//새로온 놈의 viewlist에 시야 안에 들어온 클라 추가
 				
-				new_client->send_in_packet(old_client.id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
-				old_client.send_in_packet(id);							//시야 안에 클라한테 새로온 애 위치 전송.
+				new_client->send_in_packet(old_client->id);				//새로 들어온 클라에게 시야 안의 기존 애들 위치 전송
+				old_client->send_in_packet(id);							//시야 안에 클라한테 새로온 애 위치 전송.
 				
-				new_client->send_direction_packet(old_client.id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
-				old_client.send_direction_packet(id);						//시야 안에 클라한테 새로온 애 방향 전송.
+				new_client->send_direction_packet(old_client->id);			//새로 들어온 클라에게 시야 안의 기존 애들 방향 전송
+				old_client->send_direction_packet(id);						//시야 안에 클라한테 새로온 애 방향 전송.
 				
-				if (get_object_type(old_client.id) == 1) {							//NPC라면 깨우기
-					wake_up_npc(old_client.id);
+				if (get_object_type(old_client->id) == 1) {							//NPC라면 깨우기
+					wake_up_npc(old_client->id);
 				}
 			}
 		}
@@ -987,7 +1005,6 @@ int API_SendMessage(lua_State* L)
 	char* mess = (char*)lua_tostring(L, -1);
 
 	lua_pop(L, 4);
-	//cout << "send message" << endl;
 	objects[user_id].send_chat_packet(my_id, mess);
 	return 0;
 }
@@ -1008,23 +1025,23 @@ void spawn_npc()
 		sprintf_s(objects[npc_id].player.name, "NPC %d", npc_id);
 		add_to_sector_list(npc_id);
 		
-		//auto L = objects[npc_id].lua = luaL_newstate();
-		//luaL_openlibs(L);
-		//luaL_loadfile(L, "npc.lua");
-		//int error = lua_pcall(L, 0, 0, 0);
-		//if (error) {
-		//	cout << "Error:" << lua_tostring(L, -1);
-		//	lua_pop(L, 1);
-		//}
+		lua_State* L = objects[npc_id].lua = luaL_newstate();
+		luaL_openlibs(L);
+		luaL_loadfile(L, "npc.lua");
+		int error = lua_pcall(L, 0, 0, 0);
+		if (error) {
+			cout << "Error:" << lua_tostring(L, -1);
+			lua_pop(L, 1);
+		}
 
-		//lua_getglobal(L, "set_uid");
-		//lua_pushnumber(L, npc_id);
-		//lua_pcall(L, 1, 0, 0);
-		//lua_pop(L, 1);// eliminate set_uid from stack after call
+		lua_getglobal(L, "set_uid");
+		lua_pushnumber(L, npc_id);
+		lua_pcall(L, 1, 0, 0);
+		lua_pop(L, 1);
 
-		//lua_register(L, "API_get_x", API_get_x);
-		//lua_register(L, "API_get_y", API_get_y);
-		//lua_register(L, "API_SendMessage", API_SendMessage);
+		lua_register(L, "API_get_x", API_get_x);
+		lua_register(L, "API_get_y", API_get_y);
+		lua_register(L, "API_SendMessage", API_SendMessage);
 	}
 	auto end_t = chrono::system_clock::now();
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end_t - start_t);
@@ -1067,11 +1084,8 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
 			return;
 		}
-		TI prev_pos = this_npc->player.position;
-
+		//섹터 옮기기
 		move_sector(npc_id);
-
-		//this_npc->prev_move_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 
 		unordered_set<int> list_of_sector;
 		get_from_sector_list(npc_id, list_of_sector);				//본인이 보는 섹터에 있는 클라이언트들을 불러옴
@@ -1230,71 +1244,63 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 			reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
 			return;
 		}
-		TI my_position{ this_npc->player.position.x, this_npc->player.position.y };
-		TI enemy_position{ objects[this_npc->enemy_id].player.position.x, objects[this_npc->enemy_id].player.position.y };
+		TI my_pos{ this_npc->player.position.x, this_npc->player.position.y };
+		TI enemy_pos{ objects[this_npc->enemy_id].player.position.x, objects[this_npc->enemy_id].player.position.y };
 		
-		if (my_position.x > enemy_position.x) {
-			my_position.x -= enemy_position.x;
-			enemy_position.x = 0;
+		if (my_pos.x > enemy_pos.x) {
+			my_pos.x -= enemy_pos.x;
+			enemy_pos.x = 0;
 		}
-		else if((my_position.x < enemy_position.x)) {
-			enemy_position.x -= my_position.x;
-			my_position.x = 0;
+		else if((my_pos.x < enemy_pos.x)) {
+			enemy_pos.x -= my_pos.x;
+			my_pos.x = 0;
 		}
 		else {
-			my_position.x = 0;
-			enemy_position.x = 0;
+			my_pos.x = 0;
+			enemy_pos.x = 0;
 		}
 		
-		if (my_position.y > enemy_position.y) {
-			my_position.y -= enemy_position.y;
-			enemy_position.y = 0;
+		if (my_pos.y > enemy_pos.y) {
+			my_pos.y -= enemy_pos.y;
+			enemy_pos.y = 0;
 		}
-		else if ((my_position.y < enemy_position.y)) {
-			enemy_position.y -= my_position.y;
-			my_position.y = 0;
+		else if ((my_pos.y < enemy_pos.y)) {
+			enemy_pos.y -= my_pos.y;
+			my_pos.y = 0;
 		}
 		else {
-			my_position.y = 0;
-			enemy_position.y = 0;
+			my_pos.y = 0;
+			enemy_pos.y = 0;
 		}
 		
-		TI diff = { abs(enemy_position.x - my_position.x) + 1, abs(enemy_position.y - my_position.y) + 1 };
+		TI diff = { abs(enemy_pos.x - my_pos.x) + 1, abs(enemy_pos.y - my_pos.y) + 1 };
 		if(diff.x + diff.y <= 3){		//가로나 세로 딱 붙어있는 위치
 			//cout << npc_id << " 공격 범위\n";
 			reserve_timer(npc_id, EV_ATTACK, PLAYER_ATTACK_TIME);
 			return;
 		}
-		TI next_position = turn_astar(my_position, enemy_position, diff);
+		TI next_pos = turn_astar(my_pos, enemy_pos, diff);
 		
 		this_npc->player.tc_direction = { 0, 0 };
-		if (abs(next_position.x - my_position.x) + abs(next_position.y - my_position.y) <= 2) {
-			if (my_position.y > next_position.y) {
+		if (abs(next_pos.x - my_pos.x) + abs(next_pos.y - my_pos.y) <= 2) {
+			if (my_pos.y > next_pos.y) 
 				this_npc->player.tc_direction.y = -1;
-			}
-			else if (my_position.y < next_position.y) {
+			else if (my_pos.y < next_pos.y) 
 				this_npc->player.tc_direction.y = 1;
-			}
-			else if (my_position.x > next_position.x) {
+			else if (my_pos.x > next_pos.x) 
 				this_npc->player.tc_direction.x = -1;
-			}
-			else if (my_position.x < next_position.x) {
+			else if (my_pos.x < next_pos.x) 
 				this_npc->player.tc_direction.x = 1;
-			}
 		}
 		else {
-			if (my_position.y > next_position.y) {
+			if (my_pos.y > next_pos.y) 
 				this_npc->player.tc_direction.y = -1;
-			}
-			if (my_position.y < next_position.y) {
+			if (my_pos.y < next_pos.y) 
 				this_npc->player.tc_direction.y = 1;
-			}
-			if (my_position.x > next_position.x) {
+			if (my_pos.x > next_pos.x) 
 				this_npc->player.tc_direction.x = -1;
-			}
-			if (my_position.x < next_position.x) {
+			if (my_pos.x < next_pos.x) 
 				this_npc->player.tc_direction.x = 1;
-			}
 		}
 
 		TI prev_pos = this_npc->player.position;
