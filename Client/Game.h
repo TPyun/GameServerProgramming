@@ -21,7 +21,7 @@ public:
 	bool get_running() { return isRunning; }
 	void initialize_main();
 	void initialize_ingame();
-	void play_sound(char, bool);
+	void play_sound(char, bool, int);
 	void stop_sound(char);
 
 	//ingame scene

@@ -282,7 +282,7 @@ void Game::main_handle_events()
 	}
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Tab) {
 		//cout << "Tab" << endl;
-		play_sound(SOUND_TAB, false);
+		play_sound(SOUND_TAB, false, 100);
 		switch (input_height) {
 		case 130:
 			input_height += 100;
@@ -305,7 +305,7 @@ void Game::main_handle_events()
 		if (strlen(ip_address) && strlen(Port) && strlen(Name))
 			try_connect = true;
 		else {
-			play_sound(SOUND_ERROR, false);
+			play_sound(SOUND_ERROR, false, 100);
 			input_warning = true;
 		}
 	}
@@ -345,7 +345,7 @@ TI Game::get_relative_location(TD position)
 void Game::initialize_main()
 {
 	stop_sound(SOUND_ENV);
-	play_sound(SOUND_BEAM, false);
+	play_sound(SOUND_BEAM, false, 100);
 	ZeroMemory(&key_input, sizeof(key_input));
 
 	input_height = 130;
@@ -356,8 +356,8 @@ void Game::initialize_main()
 
 void Game::initialize_ingame()
 {
-	play_sound(SOUND_ENV, true);
-	play_sound(SOUND_BEAM, false);
+	play_sound(SOUND_ENV, true, 20);
+	play_sound(SOUND_BEAM, false, 100);
 	ZeroMemory(&key_input, sizeof(key_input));
 
 	information_mode = false;
@@ -368,7 +368,7 @@ void Game::initialize_ingame()
 	cout << "Press Tab to see information." << endl;
 }
 
-void Game::play_sound(char type, bool loop)
+void Game::play_sound(char type, bool loop, int volume)
 {
 	/*int i = 0;
 	for (auto& sound : sounds) {
@@ -379,6 +379,7 @@ void Game::play_sound(char type, bool loop)
 		if (sound.getStatus() == 0) {
 			sound.setBuffer(sound_buffer[type]);
 			sound.setLoop(loop);
+			sound.setVolume(volume);
 			sound.play();
 			return;
 		}
@@ -833,7 +834,7 @@ void Game::game_handle_events()
 		}
 
 		if (sfml_event.key.code == sf::Keyboard::Tab) {
-			play_sound(SOUND_TAB, false);
+			play_sound(SOUND_TAB, false, 100);
 			if (information_mode)
 				information_mode = false;
 			else

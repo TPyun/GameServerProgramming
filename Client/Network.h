@@ -248,14 +248,14 @@ void process_packet(char* packet)
 		{
 		case HIT_TYPE_NONE:
 			switch (recv_packet->attack_type) {
-			case ATTACK_FORWARD:game->play_sound(SOUND_SWORD_ATTACK, false); break;
-			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			case ATTACK_FORWARD:game->play_sound(SOUND_SWORD_ATTACK, false, 100); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false, 100); break;
 			}
 			break;
 		case HIT_TYPE_HIT:
 			switch (recv_packet->attack_type) {
-			case ATTACK_FORWARD :game->play_sound(SOUND_SWORD_HIT, false); break;
-			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			case ATTACK_FORWARD :game->play_sound(SOUND_SWORD_HIT, false, 100); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false, 100); break;
 			}
 			if (attacker_id == game->my_id) {
 				game->attack_success_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
@@ -264,10 +264,10 @@ void process_packet(char* packet)
 			break;
 		case HIT_TYPE_DEAD:
 			switch (recv_packet->attack_type) {
-			case ATTACK_FORWARD: game->play_sound(SOUND_SWORD_HIT, false); break;
-			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			case ATTACK_FORWARD: game->play_sound(SOUND_SWORD_HIT, false, 100); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false, 100); break;
 			}
-			game->play_sound(SOUND_DEAD, false);
+			game->play_sound(SOUND_DEAD, false, 100);
 			if (attacker_id == game->my_id) {
 				game->attack_success_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 				game->attack_success_type = recv_packet->attack_type;
@@ -322,10 +322,10 @@ void process_packet(char* packet)
 
 		game->stat_changed_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		if (game->level_change > 0)
-			game->play_sound(SOUND_STAT, false);
+			game->play_sound(SOUND_STAT, false, 100);
 
 		if (recv_packet->hp <= 0) {
-			game->play_sound(SOUND_DOWN, false);
+			game->play_sound(SOUND_DOWN, false, 100);
 			game->dead = true;
 			game->dead_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		}
@@ -413,7 +413,7 @@ DWORD __stdcall process(LPVOID arg)
 
 		int retval = WSAConnect(server_socket, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address), 0, 0, 0, 0);
 		if (retval == SOCKET_ERROR) {
-			game->play_sound(SOUND_ERROR, false);
+			game->play_sound(SOUND_ERROR, false, 100);
 			game->connect_warning = true;
 			continue;
 		}

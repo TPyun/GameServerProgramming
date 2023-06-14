@@ -878,7 +878,7 @@ void process_packet(int id, char* packet)
 					int bonus{1};
 					if (watcher >= AGGR_NPC_START)
 						bonus = 2;
-					attacker->player.increase_exp(defender_level * defender_level * 50 * bonus);
+					attacker->player.increase_exp(defender_level * defender_level * bonus);
 					attacker->send_stat_packet();
 					//disconnect(watcher);
 					objects[watcher].dead();
@@ -1333,7 +1333,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 						this_npc->enemy_id = -1;
 					
 					int defender_level = objects[watcher].player.level;
-					this_npc->player.increase_exp(defender_level * defender_level * EXP_INCREASE);
+					this_npc->player.increase_exp(defender_level * defender_level);
 					//disconnect(watcher);
 					objects[watcher].dead();
 
