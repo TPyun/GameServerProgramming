@@ -356,7 +356,7 @@ void Game::initialize_main()
 
 void Game::initialize_ingame()
 {
-	play_sound(SOUND_ENV, true, 20);
+	play_sound(SOUND_ENV, true, 10);
 	play_sound(SOUND_BEAM, false, 100);
 	ZeroMemory(&key_input, sizeof(key_input));
 
