@@ -55,7 +55,7 @@ public:
 	int dead_time{};
 	int left_dead_time{};
 
-	int stat_chaged_time{};
+	int stat_changed_time{};
 	int left_stat_chaged_time{};
 
 	int hp_change{};

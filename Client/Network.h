@@ -268,6 +268,10 @@ void process_packet(char* packet)
 			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
 			}
 			game->play_sound(SOUND_DEAD, false);
+			if (attacker_id == game->my_id) {
+				game->attack_success_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+				game->attack_success_type = recv_packet->attack_type;
+			}
 			break;
 		}
 		//cout << recv_packet->id << " attack" << endl;
@@ -316,7 +320,7 @@ void process_packet(char* packet)
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
 
-		game->stat_chaged_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		game->stat_changed_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		if (game->level_change > 0)
 			game->play_sound(SOUND_STAT, false);
 

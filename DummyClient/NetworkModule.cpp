@@ -312,8 +312,8 @@ void Adjust_Number_Of_Client()
 	ZeroMemory(&ServerAddr, sizeof(SOCKADDR_IN));
 	ServerAddr.sin_family = AF_INET;
 	ServerAddr.sin_port = htons(PORT_NUM);
-	//ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
+	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
 
 
 	int Result = WSAConnect(g_clients[num_connections].client_socket, (sockaddr*)&ServerAddr, sizeof(ServerAddr), NULL, NULL, NULL, NULL);
@@ -375,6 +375,7 @@ void Test_Thread()
 	}
 	for (auto& client : g_clients) {
 		if (client.id == -1) continue;
+		Sleep(2);
 		DisconnectClient(client.id);
 	}
 }

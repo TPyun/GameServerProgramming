@@ -121,7 +121,9 @@ TI turn_astar(TI start_point, TI target_point, TI diff, array<TI, SECTOR_SIZE * 
 			grid[x][y] = Node(x, y);
 		}
 	}
-	int i = 0;
+	//int i = 0;
+	if (start_point.x < 0 || start_point.y < 0 || start_point.x >= width || start_point.y >= height) return { -1,-1 };
+	if (target_point.x < 0 || target_point.y < 0 || target_point.x >= width || target_point.y >= height) return { -1,-1 };
 	for (auto& obstacle : obstacles) {
 		/*cout << "obstacle " << i << ": " << obstacle.x << " " << obstacle.y << endl;
 		i++;*/

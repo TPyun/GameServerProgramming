@@ -203,10 +203,10 @@ void Game::timer()
 		}
 	}
 
-	if (stat_chaged_time > 0) {
-		left_stat_chaged_time = STAT_DISPLAY_TIME - (current_time - stat_chaged_time);
+	if (stat_changed_time > 0) {
+		left_stat_chaged_time = STAT_DISPLAY_TIME - (current_time - stat_changed_time);
 		if (left_stat_chaged_time < 0) {
-			stat_chaged_time = 0;
+			stat_changed_time = 0;
 			left_stat_chaged_time = STAT_DISPLAY_TIME;
 		}
 	}
@@ -444,7 +444,7 @@ void Game::draw_game()
 				player_color = sf::Color::White;
 			}
 			else {								//다른 플레이어
-				player_color = sf::Color(0, 100, 0, 200);
+				player_color = sf::Color(150, 255, 150, 200);
 			}
 			draw_player_sprite(player.first, player_color, 3);
 			TI related_pos = get_relative_location(player.second.curr_position);
@@ -466,7 +466,7 @@ void Game::draw_game()
 	}
 
 
-	if (stat_chaged_time > 0) {
+	if (stat_changed_time > 0) {
 		if (level_change != 0) {
 			string text = "Level UP " + to_string(level_change);
 			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
