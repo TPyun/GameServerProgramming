@@ -247,17 +247,26 @@ void process_packet(char* packet)
 		switch (recv_packet->hit_type)
 		{
 		case HIT_TYPE_NONE:
-			game->play_sound(SOUND_SWORD_ATTACK, false);
+			switch (recv_packet->attack_type) {
+			case ATTACK_FORWARD:game->play_sound(SOUND_SWORD_ATTACK, false); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			}
 			break;
 		case HIT_TYPE_HIT:
-			game->play_sound(SOUND_SWORD_HIT, false);
+			switch (recv_packet->attack_type) {
+			case ATTACK_FORWARD :game->play_sound(SOUND_SWORD_HIT, false); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			}
 			if (attacker_id == game->my_id) {
 				game->attack_success_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 				game->attack_success_type = recv_packet->attack_type;
 			}
 			break;
 		case HIT_TYPE_DEAD:
-			game->play_sound(SOUND_SWORD_HIT, false);
+			switch (recv_packet->attack_type) {
+			case ATTACK_FORWARD: game->play_sound(SOUND_SWORD_HIT, false); break;
+			case ATTACK_WIDE: game->play_sound(SOUND_FIRE, false); break;
+			}
 			game->play_sound(SOUND_DEAD, false);
 			break;
 		}
@@ -308,8 +317,11 @@ void process_packet(char* packet)
 		game->players[game->my_id].exp = recv_packet->exp;
 
 		game->stat_chaged_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		if (game->level_change > 0)
+			game->play_sound(SOUND_STAT, false);
 
 		if (recv_packet->hp <= 0) {
+			game->play_sound(SOUND_DOWN, false);
 			game->dead = true;
 			game->dead_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 		}
@@ -324,7 +336,7 @@ void process_packet(char* packet)
 		game->players[client_id].chat = recv_packet->mess;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
 		unsigned short packet_size = packet[0];
-		cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << " size: " << packet_size << endl;
+		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << " size: " << packet_size << endl;
 	}
 	break;
 	case SC_LOGIN_INFO:
@@ -397,6 +409,7 @@ DWORD __stdcall process(LPVOID arg)
 
 		int retval = WSAConnect(server_socket, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address), 0, 0, 0, 0);
 		if (retval == SOCKET_ERROR) {
+			game->play_sound(SOUND_ERROR, false);
 			game->connect_warning = true;
 			continue;
 		}

@@ -5,7 +5,7 @@
 #include <chrono>
 #include "../Protocol.h"
 
-enum State { ST_IDLE, ST_MOVE, ST_RUN, ST_PUSH, ST_FORWARD_ATTACK, ST_WIDE_ATTACK, ST_HIT };
+enum State { ST_IDLE, ST_MOVE, ST_FORWARD_ATTACK, ST_WIDE_ATTACK, ST_RUN, ST_PUSH, ST_HIT };
 class Player
 {
 public:

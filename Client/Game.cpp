@@ -21,7 +21,7 @@ Game::Game()
 	//render();
 
 	//땅 텍스쳐
-	if(!grass_texture.loadFromFile("Texture/grass1.png"))
+	if(!grass_texture.loadFromFile("Texture/grass.png"))
 		cout << "Could not load grass texture!" << endl;
 	grass_texture.setSmooth(true);
 	grass_sprite.setTexture(grass_texture);
@@ -37,19 +37,28 @@ Game::Game()
 	rock_sprite.setTexture(rock_texture);
 	
 	//플레이어 텍스쳐
-	char player_tex_file[7][20]{ "Idle_new.png", "Walk_new.png", "Run_new.png", "Push_new.png", "Attack.png", "Idle_new.png", "Hit_new.png" };
+	char player_tex_file[7][20]{ "Idle_new.png", "Walk_new.png", "Attack.png", "Idle_new.png", "Run_new.png", "Push_new.png", "Hit_new.png" };
 	for (int act = 0; act < 7; act++) {
 		char player_tex_root[30] = "Texture/Player/";
 		if (!player_texture[act].loadFromFile(strcat(player_tex_root, player_tex_file[act])))
 			cout << "Image not loaded!" << endl;
-		else {
+		else 
 			player_sprite[act].setTexture(player_texture[act]);
-		}
 	}
 
+	////몬스터 텍스쳐
+	//char monster_tex_file[4][20]{ "Idle.png", "Walk.png", "Stomp.png", "Swipe.png" };
+	//for (int act = 0; act < 4; act++) {
+	//	char monster_tex_root[30] = "Texture/Monster/";
+	//	if (!monster_texture[act].loadFromFile(strcat(monster_tex_root, monster_tex_file[act])))
+	//		cout << "Image not loaded!" << endl;
+	//	else
+	//		monster_sprite[act].setTexture(monster_texture[act]);
+	//}
+
 	//사운드 로드
-	char sound_file[100][20]{ "yell.wav", "hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav", "dead.wav"};
-	for (int type = 0; type < 10; type++) {
+	char sound_file[100][20]{"hit.wav", "attack_air.wav", "sword_blood.wav", "sword_air.wav", "walk_grass.wav", "env.wav",  "turn_on.wav", "tab.wav", "dead.wav", "fire.wav", "doom.wav", "stat.wav", "down.wav", "error.wav", "beam.wav"};
+	for (int type = 0; type < 15; type++) {
 		char sounds_root[30] = "Sounds/";
 		if (!sound_buffer[type].loadFromFile(strcat(sounds_root, sound_file[type])))
 			cout << "Sound not loaded!" << endl;
@@ -295,8 +304,10 @@ void Game::main_handle_events()
 	else if (sfml_event.type == sf::Event::KeyPressed && sfml_event.key.code == sf::Keyboard::Return && input_height == 430) {
 		if (strlen(ip_address) && strlen(Port) && strlen(Name))
 			try_connect = true;
-		else
+		else {
+			play_sound(SOUND_ERROR, false);
 			input_warning = true;
+		}
 	}
 	else if (sfml_event.type == sf::Event::TextEntered && text_input.size() < 15) {
 		//cout << "Typing: " << static_cast<char>(sfml_event.text.unicode) << endl;
@@ -334,7 +345,7 @@ TI Game::get_relative_location(TD position)
 void Game::initialize_main()
 {
 	stop_sound(SOUND_ENV);
-	play_sound(SOUND_TURN_ON, false);
+	play_sound(SOUND_BEAM, false);
 	ZeroMemory(&key_input, sizeof(key_input));
 
 	input_height = 130;
@@ -346,7 +357,7 @@ void Game::initialize_main()
 void Game::initialize_ingame()
 {
 	play_sound(SOUND_ENV, true);
-	stop_sound(SOUND_TURN_ON);
+	play_sound(SOUND_BEAM, false);
 	ZeroMemory(&key_input, sizeof(key_input));
 
 	information_mode = false;
@@ -368,7 +379,6 @@ void Game::play_sound(char type, bool loop)
 		if (sound.getStatus() == 0) {
 			sound.setBuffer(sound_buffer[type]);
 			sound.setLoop(loop);
-			sound.setVolume(0.5);
 			sound.play();
 			return;
 		}
@@ -419,17 +429,29 @@ void Game::draw_game()
 		for (const auto& player : players) {
 			if ((int)player_position.y + height != player.second.arr_position.y) continue;
 
+			sf::Color player_color = sf::Color::White;
 			if (player.first >= OBSTACLE_START) {
 				draw_obstacle(player.first);
+				continue;
 			}
-			else {
-				draw_sprite(player.first, sf::Color::White, 3); // Walk
-				TI related_pos = get_relative_location(player.second.curr_position);
-				string name(player.second.name);
-				draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
-				if (player.second.chat_time)		//draw chat
-					draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
+			else if (player.first >= AGGR_NPC_START) {	//NPC
+				player_color = sf::Color(255, 150, 150, 200);
 			}
+			else if(player.first >= NORMAL_NPC_START){	//NPC
+				player_color = sf::Color(200,200,200,200);
+			}
+			else if(player.first == my_id){		//본인
+				player_color = sf::Color::White;
+			}
+			else {								//다른 플레이어
+				player_color = sf::Color(0, 100, 0, 200);
+			}
+			draw_player_sprite(player.first, player_color, 3);
+			TI related_pos = get_relative_location(player.second.curr_position);
+			string name(player.second.name);
+			draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
+			if (player.second.chat_time)		//draw chat
+				draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
 		}
 	}
 
@@ -523,7 +545,7 @@ void Game::draw_stat()
 	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent, 3);
 }
 
-void Game::draw_sprite(int id, sf::Color color, char size)
+void Game::draw_player_sprite(int id, sf::Color color, char size)
 {
 	Player* this_player = &players[id];
 	
@@ -548,6 +570,7 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 		break;
 	case ST_WIDE_ATTACK:
 		player_sprite_size = { 16, 24 };
+		
 		int fire_sprite_length = 5;
 		int fire_sprite_size = 16;
 		fire_sprite.setScale(size, size);
@@ -567,6 +590,109 @@ void Game::draw_sprite(int id, sf::Color color, char size)
 	player_sprite[this_player->state].setPosition(player_position.x - (player_sprite_size.x * size) / 2, player_position.y - (player_sprite_size.y * size));
 	player_sprite[this_player->state].setTextureRect(sf::IntRect(sprite_i % player_sprite_length * player_sprite_size.x, player_sprite_size.y * (direction + 1), player_sprite_size.x, player_sprite_size.y));
 	sfml_window->draw(player_sprite[this_player->state]);
+}
+
+void Game::draw_monster_sprite(int id, sf::Color color, char size)
+{
+	Player* this_monster = &players[id];
+	TI monster_position = get_relative_location(this_monster->curr_position);
+	char monster_sprite_length{};
+	TUC monster_sprite_size{};
+	char direction{};
+	unsigned char sprite_i = this_monster->sprite_iter;
+	monster_sprite_size = { 64, 64 };
+
+	switch (this_monster->state) {
+	case ST_MOVE:
+		monster_sprite_length = 10;
+		switch (this_monster->direction) 
+		{
+		case DIR_UP:
+			direction = 0;
+			break;
+		case DIR_DOWN:
+			direction = 3;
+			break;
+		case DIR_LEFT:
+			direction = 1;
+			break;
+		case DIR_RIGHT:
+			direction = 2;
+			break;
+		}
+		break;
+	case ST_IDLE:
+		monster_sprite_length = 7;
+		direction = this_monster->direction;
+		switch (this_monster->direction) 
+		{
+		case DIR_UP:
+			direction = 1;
+			break;
+		case DIR_DOWN:
+			direction = 0;
+			break;
+		case DIR_LEFT:
+			direction = 2;
+			break;
+		case DIR_RIGHT:
+			direction = 3;
+			break;
+		}
+		break;
+	case ST_FORWARD_ATTACK:
+		monster_sprite_length = 13;
+		direction = this_monster->direction;
+		switch (this_monster->direction) {
+		case DIR_UP:
+			direction = 0;
+			break;
+		case DIR_DOWN:
+			direction = 3;
+			break;
+		case DIR_LEFT:
+			direction = 1;
+			break;
+		case DIR_RIGHT:
+			direction = 2;
+			break;
+		}
+		break;
+	case ST_WIDE_ATTACK:
+		monster_sprite_length = 10;
+		direction = this_monster->direction;
+		switch (this_monster->direction) {
+		case DIR_UP:
+			direction = 1;
+			break;
+		case DIR_DOWN:
+			direction = 0;
+			break;
+		case DIR_LEFT:
+			direction = 2;
+			break;
+		case DIR_RIGHT:
+			direction = 3;
+			break;
+		}
+		int fire_sprite_length = 5;
+		int fire_sprite_size = 16;
+		fire_sprite.setScale(size, size);
+		fire_sprite.setTextureRect(sf::IntRect(sprite_i % fire_sprite_length * fire_sprite_size, 0, fire_sprite_size, fire_sprite_size));
+		for (int x = -1; x <= 1; x++) {
+			for (int y = -1; y <= 1; y++) {
+				if (x * y != 0) continue;
+				fire_sprite.setPosition(monster_position.x + BLOCK_SIZE * x - (fire_sprite_size * size / 2), monster_position.y + BLOCK_SIZE * y - (fire_sprite_size * size));
+				sfml_window->draw(fire_sprite);
+			}
+		}
+		break;
+	}
+	monster_sprite[this_monster->state].setColor(color);
+	monster_sprite[this_monster->state].setScale(size, size);
+	monster_sprite[this_monster->state].setPosition(monster_position.x - (monster_sprite_size.x * size) / 2, monster_position.y - (monster_sprite_size.y * size));
+	monster_sprite[this_monster->state].setTextureRect(sf::IntRect(sprite_i % monster_sprite_length * monster_sprite_size.x, monster_sprite_size.y * direction, monster_sprite_size.x, monster_sprite_size.y));
+	sfml_window->draw(monster_sprite[this_monster->state]);
 }
 
 void Game::draw_information_mode()

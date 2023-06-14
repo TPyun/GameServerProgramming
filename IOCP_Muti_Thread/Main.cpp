@@ -80,7 +80,7 @@ SOCKET global_server_socket;
 TI random_spawn_location();
 void disconnect(int);
 void do_npc(int, EVENT_TYPE);
-atomic <int> player_count = 0;
+//atomic <int> player_count = 0;
 
 enum SESSION_STATE { ST_FREE, ST_ALLOC, ST_INGAME, ST_DEAD };
 class SESSION {
@@ -420,7 +420,7 @@ void show_all_sector_list()
 			//printf("%2d ", sector_list[i][j].size());
 			total += sector_list[i][j].size();
 		}
-		cout << endl;
+		//cout << endl;
 	}
 	cout << "total: " << total << endl;
 }
@@ -436,7 +436,6 @@ void disconnect(int id)
 
 	if (get_object_type(id) == 0 && this_player->player.level != -1) {	//플레이어면 저장
 		sql_mtx.lock();
-		cout << this_player->player.name << " " << this_player->player.level << " " << this_player->player.exp << " " << this_player->player.hp << " " << this_player->player.max_hp << " " << this_player->player.position.x << " " << this_player->player.position.y << endl;
 		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
 		sql_mtx.unlock();
 	}
@@ -461,10 +460,10 @@ void disconnect(int id)
 
 	closesocket(this_player->socket);
 
-	player_count.fetch_sub(1);
+	/*player_count.fetch_sub(1);
 	if (player_count.load() < 50) {
 		cout << player_count.load() << " Clients Remain. Client id: " << id << endl;
-	}
+	}*/
 }
 
 TI random_spawn_location()
@@ -899,7 +898,7 @@ void process_packet(int id, char* packet)
 		SESSION* new_client = &objects[id];
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 		
-		player_count.fetch_add(1);
+		//player_count.fetch_add(1);
 		//cout << "player count: " << player_count << endl;
 
 		sql_mtx.lock();
@@ -928,6 +927,7 @@ void process_packet(int id, char* packet)
 
 		if (info.level == -1) {	//만일의 sql 오류일때 연결 끊기
 			objects[id].send_login_fail_packet();
+			objects[id].player.level = -1;
 			disconnect(id);
 			return;
 		}
@@ -950,8 +950,6 @@ void process_packet(int id, char* packet)
 			lock_guard<mutex> m{ objects[id].state_mtx };
 			objects[id].state = ST_INGAME;
 		}
-
-		natural_healing_start(id);			//피 부족하면 채우기
 
 		new_client->add_to_sector_list();
 
@@ -997,7 +995,7 @@ void process_packet(int id, char* packet)
 			objects[hearing_client].send_chat_packet(id, recv_packet->mess);
 		}
 		unsigned short packet_size = packet[0];
-		cout << "client " << id << " : " << recv_packet->mess << " size:" << packet_size << endl;
+		//cout << "client " << id << " : " << recv_packet->mess << " size:" << packet_size << endl;
 	}
 	break;
 	default: cout << "Unknown Packet Type" << endl; break;

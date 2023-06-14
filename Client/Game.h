@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <concurrent_unordered_map.h>
 #include "Player.h"
-
-enum SOUNDS { SOUND_YELL, SOUND_HIT, SOUND_ATTACK, SOUND_SWORD_HIT, SOUND_SWORD_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB, SOUND_DEAD};
+enum SOUNDS { SOUND_HIT, SOUND_ATTACK, SOUND_SWORD_HIT, SOUND_SWORD_ATTACK, SOUND_MOVE, SOUND_ENV, SOUND_TURN_ON , SOUND_TAB, SOUND_DEAD, SOUND_FIRE, SOUND_DOOM, SOUND_STAT, SOUND_DOWN, SOUND_ERROR, SOUND_BEAM};
 class Game
 {
 public:
@@ -69,14 +68,14 @@ public:
 	int attack_success_type{};
 
 	
-	
 private:
 	TI get_relative_location(TI);
 	TI get_relative_location(TD);
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
 	void draw_sfml_rect(TI, TI, sf::Color, sf::Color, int);
-	void draw_sprite(int, sf::Color, char);
+	void draw_player_sprite(int, sf::Color, char);
+	void draw_monster_sprite(int, sf::Color, char);
 	void draw_obstacle(int);
 	void timer();
 	
@@ -97,6 +96,9 @@ private:
 
 	sf::Texture player_texture[7];
 	sf::Sprite player_sprite[7];
+
+	sf::Texture monster_texture[4];
+	sf::Sprite monster_sprite[4];
 
 	sf::Texture grass_texture;
 	sf::Sprite grass_sprite;
