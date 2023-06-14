@@ -434,8 +434,9 @@ void disconnect(int id)
 		else this_player->state = ST_FREE;
 	}
 
-	if (get_object_type(id) == 0) {	//플레이어면 저장
+	if (get_object_type(id) == 0 && this_player->player.level != -1) {	//플레이어면 저장
 		sql_mtx.lock();
+		cout << this_player->player.name << " " << this_player->player.level << " " << this_player->player.exp << " " << this_player->player.hp << " " << this_player->player.max_hp << " " << this_player->player.position.x << " " << this_player->player.position.y << endl;
 		sql.save_info(this_player->player.name, this_player->player.level, this_player->player.exp, this_player->player.hp, this_player->player.max_hp, this_player->player.position.x, this_player->player.position.y);
 		sql_mtx.unlock();
 	}
@@ -502,6 +503,8 @@ bool attack_position(int attacker, int defender, ATTACK_TYPE attack_type)
 	switch (attack_type)
 	{
 	case ATTACK_FORWARD:
+		if (objects[attacker].player.tc_direction.x != 0 && objects[attacker].player.tc_direction.y != 0)
+			objects[attacker].player.tc_direction.y = 0;
 		if (objects[attacker].player.position.x == objects[defender].player.position.x && objects[attacker].player.position.y == objects[defender].player.position.y)
 			return true;
 		if (objects[attacker].player.position.x + objects[attacker].player.tc_direction.x == objects[defender].player.position.x && objects[attacker].player.position.y + objects[attacker].player.tc_direction.y == objects[defender].player.position.y)
@@ -897,7 +900,7 @@ void process_packet(int id, char* packet)
 		CS_LOGIN_PACKET* recv_packet = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 		
 		player_count.fetch_add(1);
-		cout << "player count: " << player_count << endl;
+		//cout << "player count: " << player_count << endl;
 
 		sql_mtx.lock();
 		PI info = sql.find_by_name(recv_packet->name);
@@ -916,6 +919,7 @@ void process_packet(int id, char* packet)
 			for (auto& playing_player : objects) {
 				if (strcmp(playing_player.player.name, recv_packet->name) == 0) {	//이미 플레이중인 플레이어
 					objects[id].send_login_fail_packet();
+					objects[id].player.level = -1;
 					disconnect(id);
 					return;
 				}
@@ -1335,7 +1339,7 @@ void do_npc(int npc_id, EVENT_TYPE event_type)
 					//disconnect(watcher);
 					objects[watcher].dead();
 
-					cout << "NPC가 " << watcher << " 죽임\n";
+					//cout << "NPC가 " << watcher << " 죽임\n";
 				}
 				objects[watcher].send_stat_packet();							//맞은놈 스탯
 			}

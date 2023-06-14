@@ -1,0 +1,2 @@
+﻿  Performing Custom Build Tools
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(247,5): error MSB8066: 'protocol.proto'에 대한 사용자 지정 빌드가 종료되었습니다(코드 -1073741515).

@@ -135,7 +135,8 @@ void SQL::save_info(char* name, int level, int exp, int hp, int max_hp, int pos_
 		string nameString(name);
 		wstring sqlStatement = L"EXEC save_info '" + wstring(nameString.begin(), nameString.end()) + L"'" + L"," + to_wstring(level) + L"," + to_wstring(exp) + L"," + to_wstring(hp) + L"," + to_wstring(max_hp) + L"," + to_wstring(pos_x) + L"," + to_wstring(pos_y);
         retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
-
+		//wcout << sqlStatement << endl;
+        
 		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
 			//cout << "save info success" << endl;
 		}
