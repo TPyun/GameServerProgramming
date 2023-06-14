@@ -185,6 +185,30 @@ void Game::timer()
 		players[my_id].curr_exp = players[my_id].exp;
 	else
 		players[my_id].curr_exp = lerp(players[my_id].curr_exp, (float)players[my_id].exp, 0.05);
+
+	if (dead_time > 0) {
+		left_dead_time = RESPAWN_TIME - (current_time - dead_time);
+		if (left_dead_time < 0) {
+			dead_time = 0;
+			left_dead_time = RESPAWN_TIME;
+		}
+	}
+
+	if (stat_chaged_time > 0) {
+		left_stat_chaged_time = STAT_DISPLAY_TIME - (current_time - stat_chaged_time);
+		if (left_stat_chaged_time < 0) {
+			stat_chaged_time = 0;
+			left_stat_chaged_time = STAT_DISPLAY_TIME;
+		}
+	}
+
+	if (attack_success_time > 0) {
+		left_attack_success_time = STAT_DISPLAY_TIME - (current_time - attack_success_time);
+		if (left_attack_success_time < 0) {
+			attack_success_time = 0;
+			left_attack_success_time = STAT_DISPLAY_TIME;
+		}
+	}
 }
 
 void Game::render()
@@ -199,12 +223,12 @@ void Game::clear()
 
 void Game::draw_main()
 {
-	draw_sfml_rect(TI{ 99, input_height}, TI{200, 20}, sf::Color(80, 80, 80), sf::Color(80, 80, 80));
+	draw_sfml_rect(TI{ 99, input_height}, TI{200, 20}, sf::Color(80, 80, 80), sf::Color(80, 80, 80), 3);
 
-	draw_sfml_rect(TI{ 99, 130 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
-	draw_sfml_rect(TI{ 99, 230 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
-	draw_sfml_rect(TI{ 99, 330 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
-	draw_sfml_rect(TI{ 99, 430 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent);
+	draw_sfml_rect(TI{ 99, 130 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent, 3);
+	draw_sfml_rect(TI{ 99, 230 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent, 3);
+	draw_sfml_rect(TI{ 99, 330 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent, 3);
+	draw_sfml_rect(TI{ 99, 430 }, TI{ 200, 20 }, sf::Color::White, sf::Color::Transparent, 3);
 	
 	draw_sfml_text(TI{ 60, input_height }, (char*)"Tab", sf::Color(200, 200, 200), 17);
 	
@@ -221,11 +245,12 @@ void Game::draw_main()
 
 	if (input_warning) {
 		draw_sfml_text(TI{ 100, 550 }, (char*)"Please Fill All Fields", sf::Color(200, 0, 0), 17);
-		//connect_warning = false;
 	}
 	if (connect_warning) {
 		draw_sfml_text(TI{ 100, 500 }, (char*)"Connection Fail", sf::Color(180, 0, 0), 17);
-		//input_warning = false;
+	}
+	if (id_warning) {
+		draw_sfml_text(TI{ 100, 500 }, (char*)"ID is already exist", sf::Color(180, 0, 0), 17);
 	}
 }
 
@@ -315,7 +340,6 @@ void Game::initialize_main()
 	input_height = 130;
 	text_input = ip_address;
 	input_warning = false;
-	connect_warning = false;
 	scene = 0;
 }
 
@@ -393,19 +417,18 @@ void Game::draw_game()
 	// Draw the players in sorted order
 	for (int height = - VIEW_RANGE; height <= VIEW_RANGE; height++) {
 		for (const auto& player : players) {
-			
 			if ((int)player_position.y + height != player.second.arr_position.y) continue;
 
-			if (player.first < MAX_USER + MAX_NPC) {
+			if (player.first >= OBSTACLE_START) {
+				draw_obstacle(player.first);
+			}
+			else {
 				draw_sprite(player.first, sf::Color::White, 3); // Walk
 				TI related_pos = get_relative_location(player.second.curr_position);
 				string name(player.second.name);
 				draw_sfml_text_s({ related_pos.x - (int)name.length() * 4, related_pos.y - 80 }, name, sf::Color::White, 14);
 				if (player.second.chat_time)		//draw chat
 					draw_sfml_text_s({ related_pos.x - (int)player.second.chat.length() * 4, related_pos.y - 100 }, player.second.chat, sf::Color::White, 14);
-			}
-			else if (player.first < MAX_USER + MAX_NPC + MAX_OBSTACLE) {
-				draw_obstacle(player.first);
 			}
 		}
 	}
@@ -414,10 +437,41 @@ void Game::draw_game()
 	if (distance_debug_mode) {
 		for (int x = 0; x < CLIENT_RANGE; x++) {
 			for (int y = 0; y < CLIENT_RANGE; y++) {
-				draw_sfml_rect({ BLOCK_SIZE * x,  BLOCK_SIZE * y }, { BLOCK_SIZE, BLOCK_SIZE }, sf::Color::Red, sf::Color::Transparent);
+				draw_sfml_rect({ BLOCK_SIZE * x,  BLOCK_SIZE * y }, { BLOCK_SIZE, BLOCK_SIZE }, sf::Color::Red, sf::Color::Transparent, 3);
 			}
 		}
-		draw_sfml_rect({ WIDTH / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2), HEIGHT / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2) }, { BLOCK_SIZE * SECTOR_SIZE, BLOCK_SIZE * SECTOR_SIZE }, sf::Color::Blue, sf::Color::Transparent);
+		draw_sfml_rect({ WIDTH / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2), HEIGHT / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2) }, { BLOCK_SIZE * SECTOR_SIZE, BLOCK_SIZE * SECTOR_SIZE }, sf::Color::Blue, sf::Color::Transparent, 3);
+	}
+
+
+	if (stat_chaged_time > 0) {
+		if (level_change != 0) {
+			string text = "Level UP " + to_string(level_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
+		}
+		else if (exp_change > 0) {
+			string text = "EXP UP " + to_string(exp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
+		}
+		else if (hp_change < 0) {
+			string text = "HP " + to_string(hp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::Red, 22);
+		}
+		else if (hp_change > 0) {
+			string text = "HP " + to_string(hp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2  - 130 }, text, sf::Color::Green, 22);
+		}
+	}
+
+	if (attack_success_time > 0) {
+		if (ATTACK_FORWARD == attack_success_type) {
+			string text = "ATTACK 50";
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
+		}
+		else if (ATTACK_WIDE) {
+			string text = "ATTACK 20";
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
+		}
 	}
 	
 	draw_stat();
@@ -425,6 +479,14 @@ void Game::draw_game()
 		draw_information_mode();
 	if (chat_mode) 
 		draw_chat_mode();
+	if (dead) {
+		draw_sfml_rect({ 0 , 0 }, { WIDTH, HEIGHT }, sf::Color(0, 0, 0, 200), sf::Color(0, 0, 0, 200), 3);
+		string dead_sign = "YOU ARE DEAD";
+		draw_sfml_text_s({ WIDTH / 2 - (int)dead_sign.length() * 9 , HEIGHT / 2 - 50}, dead_sign, sf::Color::Red, 30);
+
+		string left_time = to_string((int)left_dead_time / 1000 + 1);
+		draw_sfml_text_s({ WIDTH / 2 - (int)left_time.length() * 4 , HEIGHT / 2 + 50 }, left_time, sf::Color::White, 30);
+	}
 }
 
 void Game::draw_obstacle(int id)
@@ -455,10 +517,10 @@ void Game::draw_stat()
 	int hp_gauge = (int)(200.f * (float)hp / max_hp);
 	int exp_gauge = (200.f * (float)exp / (100.f * pow(2, level - 1)));
 	
-	draw_sfml_rect({ 50, 10 }, { hp_gauge, 15 }, sf::Color::Transparent, sf::Color::Red);
-	draw_sfml_rect({ 50, 25 }, { exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green);
+	draw_sfml_rect({ 50, 10 }, { hp_gauge, 15 }, sf::Color::Transparent, sf::Color::Red, 3);
+	draw_sfml_rect({ 50, 25 }, { exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green, 3);
 	
-	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent);
+	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent, 3);
 }
 
 void Game::draw_sprite(int id, sf::Color color, char size)
@@ -511,7 +573,7 @@ void Game::draw_information_mode()
 {
 	//draw player list
 	int text_size = 13;
-	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, WIDTH - 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	draw_sfml_rect(TI{ 10, 10 }, TI{ 130, WIDTH - 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200), 1);
 	int information_height = 0;
 	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, "Ping: " + std::to_string(ping), sf::Color::Black, text_size);
 	draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(my_id) + ": " +  std::to_string(players[my_id].arr_position.x) + ", " + std::to_string(players[my_id].arr_position.y), sf::Color::Black, text_size);
@@ -528,22 +590,22 @@ void Game::draw_information_mode()
 	int minimap_offset = 50;
 	TI minimap_start_point{ minimap_frame_start_point.x + minimap_offset / 2, minimap_frame_start_point.y + minimap_offset  / 2};
 	TI minimap_size{ minimap_frame_size - minimap_offset, minimap_frame_size - minimap_offset };
-	draw_sfml_rect(minimap_frame_start_point, TI{ minimap_frame_size, minimap_frame_size }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));	//mini map frame
-	draw_sfml_rect(minimap_start_point, minimap_size, sf::Color::Black, sf::Color::Black);	//mini map
+	draw_sfml_rect(minimap_frame_start_point, TI{ minimap_frame_size, minimap_frame_size }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200), 1);	//mini map frame
+	draw_sfml_rect(minimap_start_point, minimap_size, sf::Color::Black, sf::Color::Black, 1);	//mini map
 	
 	for (auto& player : players) {
 		TI player_pos_minimap{ player.second.curr_position.x * minimap_size.x / W_WIDTH + minimap_start_point.x, player.second.curr_position.y * minimap_size.y / W_HEIGHT + minimap_start_point.y };
 		if (player.first == my_id)
 			continue;
-		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red);	//other position on mini map
+		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red, 1);	//other position on mini map
 	}
 	TI player_pos_minimap{ players[my_id].curr_position.x * minimap_size.x / W_WIDTH + minimap_start_point.x,  players[my_id].curr_position.y * minimap_size.y / W_HEIGHT + minimap_start_point.y};
-	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White);	//my position on mini map
+	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White, 1);	//my position on mini map
 }
 
 void Game::draw_chat_mode()
 {
-	draw_sfml_rect(TI{ 10, HEIGHT - 30 }, TI{ 400, 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200));
+	draw_sfml_rect(TI{ 10, HEIGHT - 30 }, TI{ 400, 20 }, sf::Color(150, 150, 150), sf::Color(150, 150, 150, 200), 1);
 	draw_sfml_text(TI{ 15, HEIGHT - 30 }, (char*)chat_message, sf::Color::Black, 17);
 }
 
@@ -695,11 +757,11 @@ void Game::draw_sfml_text_s(TI position, string str, sf::Color color, int size)
 	sfml_window->draw(sfml_text);
 }
 
-void Game::draw_sfml_rect(TI position, TI size, sf::Color color, sf::Color fill_color)
+void Game::draw_sfml_rect(TI position, TI size, sf::Color color, sf::Color fill_color, int thickness)
 {
 	sf::RectangleShape rect(sf::Vector2f(size.x, size.y));
 	rect.setPosition(position.x, position.y);
-	rect.setOutlineThickness(3); // Set outline thickness to 1 pixel
+	rect.setOutlineThickness(thickness); // Set outline thickness to 1 pixel
 	rect.setOutlineColor(color); // Set outline color to white
 	rect.setFillColor(fill_color);
 	sfml_window->draw(rect);

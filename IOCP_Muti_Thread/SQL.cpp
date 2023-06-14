@@ -137,7 +137,7 @@ void SQL::save_info(char* name, int level, int exp, int hp, int max_hp, int pos_
         retcode = SQLExecDirect(hstmt, reinterpret_cast<SQLWCHAR*>(sqlStatement.data()), SQL_NTS);
 
 		if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-			cout << "save info success" << endl;
+			//cout << "save info success" << endl;
 		}
 		else cout << "SQLExecDirect Error save info" << endl;
 	}

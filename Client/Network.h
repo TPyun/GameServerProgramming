@@ -11,9 +11,9 @@ WSABUF recv_wsa_buffer;
 WSAOVERLAPPED send_over;
 WSAOVERLAPPED recv_over;
 
-constexpr int BUF_SIZE = 4000;
-char recv_buffer[BUF_SIZE];
-int remain_data{};
+char process_field[BUFSIZE];
+char recv_buffer[BUFSIZE];
+int remain_data_size{};
 
 void CALLBACK send_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
 void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DWORD flags);
@@ -21,19 +21,19 @@ void process_packet(char* packet);
 
 void send(char* packet)
 {
-if (!game->connected) return;
-//cout << "send" << endl;
+	if (!game->connected) return;
+	//cout << "send" << endl;
 
-send_wsa_buffer.buf = packet;
-send_wsa_buffer.len = packet[0];
+	send_wsa_buffer.buf = packet;
+	send_wsa_buffer.len = packet[0];
 
-int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &send_over, send_callback);
-//Send Error Handling
-if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
-	cout << "WSASend failed with error: " << WSAGetLastError() << endl;
-	game->connected = false;
-	return;
-}
+	int retval = WSASend(server_socket, &send_wsa_buffer, 1, 0, 0, &send_over, send_callback);
+	//Send Error Handling
+	if (retval == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+		cout << "WSASend failed with error: " << WSAGetLastError() << endl;
+		game->connected = false;
+		return;
+	}
 }
 
 void recv()
@@ -41,9 +41,9 @@ void recv()
 	if (!game->connected) return;
 	//cout << "recv" << endl;
 
-	recv_wsa_buffer.buf = recv_buffer + remain_data;
-	recv_wsa_buffer.len = BUF_SIZE - remain_data;
-
+	recv_wsa_buffer.len = BUFSIZE - remain_data_size;
+	recv_wsa_buffer.buf = recv_buffer;
+	
 	DWORD recv_flag = 0;
 	int retval = WSARecv(server_socket, &recv_wsa_buffer, 1, 0, &recv_flag, &recv_over, recv_callback);
 	//Recv Error Handling
@@ -61,20 +61,22 @@ void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED over, DW
 		return;
 	}
 
-	int data_to_proccess = num_bytes + remain_data;
-	char* packet = recv_buffer;
+	int data_to_proccess = num_bytes + remain_data_size;
+	memcpy(process_field + remain_data_size, recv_buffer, num_bytes);
+	char* packet_ptr = process_field;
 	while (data_to_proccess > 0) {
-		int packet_size = packet[0];
+		unsigned short packet_size = packet_ptr[0];
 		if (packet_size <= data_to_proccess) {
-			process_packet(packet);
-			packet += packet_size;
+			process_packet(packet_ptr);
+			packet_ptr += packet_size;
 			data_to_proccess -= packet_size;
 		}
 		else break;
 	}
-	remain_data = data_to_proccess;
+	remain_data_size = data_to_proccess;
 	if (data_to_proccess > 0) {
-		memcpy(recv_buffer, packet, data_to_proccess);
+		//cout << "remain data: " << data_to_proccess << endl;
+		memcpy(process_field, packet_ptr, data_to_proccess);
 	}
 	recv();
 }
@@ -160,7 +162,9 @@ void send_attack_packet()
 void send_chat_packet()
 {
 	CS_CHAT_PACKET chat_packet;
-	memcpy(chat_packet.mess, game->chat_message, CHAT_SIZE);
+	strcpy_s(chat_packet.mess, game->chat_message);
+	chat_packet.size -= CHAT_SIZE;
+	chat_packet.size += strlen(game->chat_message) + 1;
 	send((char*)&chat_packet);
 	game->chat_flag = false;
 
@@ -222,20 +226,22 @@ void process_packet(char* packet)
 	case SC_ATTACK:
 	{
 		SC_ATTACK_PACKET* recv_packet = reinterpret_cast<SC_ATTACK_PACKET*>(packet);
-		int client_id = recv_packet->id;
+		int attacker_id = recv_packet->id;
 
 		game->players_mtx.lock();
-		game->players[client_id].sprite_iter = 0;
+		game->players[attacker_id].sprite_iter = 0;
 
-		switch (recv_packet->attack_type) {
+		switch (recv_packet->attack_type) 
+		{
 		case ATTACK_FORWARD:
-			game->players[client_id].forward_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+			game->players[attacker_id].forward_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 			break;
 			
 		case ATTACK_WIDE:
-			game->players[client_id].wide_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+			game->players[attacker_id].wide_attack_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
 			break;
 		}
+
 		game->players_mtx.unlock();
 		
 		switch (recv_packet->hit_type)
@@ -245,6 +251,10 @@ void process_packet(char* packet)
 			break;
 		case HIT_TYPE_HIT:
 			game->play_sound(SOUND_SWORD_HIT, false);
+			if (attacker_id == game->my_id) {
+				game->attack_success_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+				game->attack_success_type = recv_packet->attack_type;
+			}
 			break;
 		case HIT_TYPE_DEAD:
 			game->play_sound(SOUND_SWORD_HIT, false);
@@ -286,10 +296,23 @@ void process_packet(char* packet)
 	case SC_STAT_CHANGE:
 	{
 		SC_STAT_CHANGE_PACKET* recv_packet = reinterpret_cast<SC_STAT_CHANGE_PACKET*>(packet);
+
+		game->hp_change = recv_packet->hp - game->players[game->my_id].hp;
+		game->max_hp_change = recv_packet->max_hp - game->players[game->my_id].max_hp;
+		game->level_change = recv_packet->level - game->players[game->my_id].level;
+		game->exp_change = recv_packet->exp - game->players[game->my_id].exp;
+		
 		game->players[game->my_id].hp = recv_packet->hp;
 		game->players[game->my_id].max_hp = recv_packet->max_hp;
 		game->players[game->my_id].level = recv_packet->level;
 		game->players[game->my_id].exp = recv_packet->exp;
+
+		game->stat_chaged_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+
+		if (recv_packet->hp <= 0) {
+			game->dead = true;
+			game->dead_time = duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count();
+		}
 
 		//cout << "hp: " << recv_packet->hp << " max_hp: " << recv_packet->max_hp << " level: " << recv_packet->level << " exp: " << recv_packet->exp << endl;
 	}
@@ -300,11 +323,15 @@ void process_packet(char* packet)
 		int client_id = recv_packet->id;
 		game->players[client_id].chat = recv_packet->mess;
 		game->players[client_id].chat_time = static_cast<unsigned>(duration_cast<milliseconds>(high_resolution_clock::now().time_since_epoch()).count());
-		//cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << endl;
+		unsigned short packet_size = packet[0];
+		cout << "client_id: " << client_id << " chat: " << game->players[client_id].chat << " size: " << packet_size << endl;
 	}
 	break;
 	case SC_LOGIN_INFO:
 	{
+		game->connect_warning = false;
+		game->id_warning = false;
+		game->dead = false;
 		SC_LOGIN_INFO_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(packet);
 		game->my_id = recv_packet->id;
 		game->players_mtx.lock();
@@ -329,13 +356,13 @@ void process_packet(char* packet)
 	case SC_LOGIN_FAIL:
 	{
 		SC_LOGIN_FAIL_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_FAIL_PACKET*>(packet);
-		//game->login_fail = true;
+		game->id_warning = true;
+		game->connected = false;
 	}
 	break;
 	case SC_LOGIN_OK:
 	{
 		SC_LOGIN_OK_PACKET* recv_packet = reinterpret_cast<SC_LOGIN_OK_PACKET*>(packet);
-		//game->login_ok = true;
 	}
 	break;
 	default: cout << "Unknown Packet Type" << endl; break;

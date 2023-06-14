@@ -31,6 +31,7 @@ public:
 	unsigned int forward_attack_time{};
 	unsigned int wide_attack_time{};
 	unsigned int chat_time{};
+
 	std::string chat;
 
 	Player();

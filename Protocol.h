@@ -8,11 +8,18 @@
 constexpr int PORT_NUM = 9000;
 constexpr int CHAT_SIZE = 100;
 constexpr int NAME_SIZE = 20;
-
 constexpr int BUFSIZE = 200;
+
 constexpr int MAX_USER = 1'5000;
 constexpr int MAX_NPC = 20'0000;
 constexpr int MAX_OBSTACLE = 50'0000;
+
+constexpr int USER_START = 0;
+constexpr int NPC_START = USER_START + MAX_USER;
+constexpr int NORMAL_NPC_START = USER_START + MAX_USER; 
+constexpr int AGGR_NPC_START = USER_START + MAX_USER + MAX_NPC * 3 / 4;
+constexpr int OBSTACLE_START = NPC_START + MAX_NPC;
+constexpr int AGGR_RANGE = 5;
 
 constexpr int WIDTH = 760;	//Client
 constexpr int HEIGHT = 760;	//Client
@@ -26,11 +33,13 @@ constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;	//Server
 constexpr int SECTOR_NUM = W_WIDTH / SECTOR_SIZE + 1;	//Server
 constexpr int BLOCK_SIZE = WIDTH / CLIENT_RANGE;	//Both
 
-constexpr int PLAYER_MOVE_TIME = 500;	//모두 1000으로 바꿔야함
-constexpr int NPC_MOVE_TIME = 500;
-constexpr int NATURAL_HEALING_TIME = 500;
-constexpr int PLAYER_ATTACK_TIME = 500;
-constexpr int NPC_ATTACK_TIME = 500;
+constexpr int PLAYER_MOVE_TIME = 1000;	//모두 1000으로 바꿔야함
+constexpr int NPC_MOVE_TIME = 1000;
+constexpr int NATURAL_HEALING_TIME = 5000;
+constexpr int PLAYER_ATTACK_TIME = 1000;
+constexpr int NPC_ATTACK_TIME = 1000;
+constexpr int RESPAWN_TIME = 30000;	//30000
+constexpr int STAT_DISPLAY_TIME = 1000;
 
 constexpr int WIDE_ATTACK_DAMAGE = 20;
 constexpr int FORWARD_ATTACK_DAMAGE = 50;
@@ -127,7 +136,7 @@ struct CS_MOVE_PACKET {
 };
 
 struct CS_CHAT_PACKET {
-	unsigned short size = sizeof(CS_CHAT_PACKET);			// 크기가 가변이다, mess가 작으면 size도 줄이자.
+	unsigned short size = sizeof(CS_CHAT_PACKET);
 	
 	char type = CS_CHAT;
 	char mess[CHAT_SIZE];
@@ -200,8 +209,8 @@ struct SC_CHAT_PACKET {
 	unsigned short size = sizeof(SC_CHAT_PACKET);
 	char type = SC_CHAT;
 
-	int		id;
-	char	mess[CHAT_SIZE];
+	int	id;
+	char mess[CHAT_SIZE];
 };
 
 struct SC_LOGIN_OK_PACKET {
@@ -229,7 +238,6 @@ struct SC_ATTACK_PACKET {
 	char type = SC_ATTACK;
 
 	int id;
-	unsigned short damage;
 	char hit_type;
 	char attack_type;
 };

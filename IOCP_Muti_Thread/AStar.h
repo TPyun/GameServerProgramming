@@ -2,6 +2,7 @@
 #include <vector>
 #include <queue>
 #include <cmath>
+#include <unordered_set>
 #include "../Protocol.h"
 
 using namespace std;
@@ -88,11 +89,17 @@ vector<Node*> aStar(Node** grid, const Node& start, const Node& goal, int width,
 	return vector<Node*>();
 }
 
-void printGrid(Node** grid, int width, int height) {
+void printGrid(Node** grid, int width, int height, TI start_point, TI target_point) {
 	for (int y = 0; y < height; ++y) {
 		for (int x = 0; x < width; ++x) {
 			if (grid[x][y].obstacle) {
 				cout << "# ";
+			}
+			else if (x == start_point.x && y == start_point.y) {
+				cout << "S ";
+			}
+			else if (x == target_point.x && y == target_point.y) {
+				cout << "T ";
 			}
 			else {
 				cout << ". ";
@@ -102,7 +109,7 @@ void printGrid(Node** grid, int width, int height) {
 	}
 }
 
-TI turn_astar(TI start_point, TI target_point, TI diff)
+TI turn_astar(TI start_point, TI target_point, TI diff, array<TI, SECTOR_SIZE * SECTOR_SIZE> obstacles)
 {
 	int width = diff.x;
 	int height = diff.y;
@@ -114,11 +121,14 @@ TI turn_astar(TI start_point, TI target_point, TI diff)
 			grid[x][y] = Node(x, y);
 		}
 	}
-
-	// Add obstacles to the grid
-	//grid[target_point.x][target_point.y].obstacle = true;
-	//grid[3][3].obstacle = true;
-	//grid[4][3].obstacle = true;
+	int i = 0;
+	for (auto& obstacle : obstacles) {
+		/*cout << "obstacle " << i << ": " << obstacle.x << " " << obstacle.y << endl;
+		i++;*/
+		if (obstacle.x < 0 || obstacle.y < 0 || obstacle.x >= width || obstacle.y >= height) continue;
+		grid[obstacle.x][obstacle.y].obstacle = true;
+	}
+	//cout << "=====================\n";
 	
 	// Define the start and target nodes
 	Node start(start_point.x, start_point.y);
@@ -134,11 +144,8 @@ TI turn_astar(TI start_point, TI target_point, TI diff)
 	// Print the grid with the path opposite
 	/*for (auto it = path.rbegin(); it != path.rend(); ++it) {
 		Node* node = *it;
-		grid[node->x][node->y].obstacle = true;
-		printGrid(grid, width, height);
-		grid[node->x][node->y].obstacle = false;
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 		system("cls");
+		printGrid(grid, width, height, start_point, target_point);
 	}*/
 	
 	auto next_point = path.rbegin();

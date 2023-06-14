@@ -50,13 +50,32 @@ public:
 	bool chat_flag = false;
 
 	bool connect_warning = false;
+	bool id_warning = false;
+	
+	bool dead = true;
+	int dead_time{};
+	int left_dead_time{};
 
+	int stat_chaged_time{};
+	int left_stat_chaged_time{};
+
+	int hp_change{};
+	int max_hp_change{};
+	int level_change{};
+	int exp_change{};
+	
+	int attack_success_time{};
+	int left_attack_success_time{};
+	int attack_success_type{};
+
+	
+	
 private:
 	TI get_relative_location(TI);
 	TI get_relative_location(TD);
 	void draw_sfml_text(TI, char[], sf::Color, int);
 	void draw_sfml_text_s(TI, std::string, sf::Color, int);
-	void draw_sfml_rect(TI, TI, sf::Color, sf::Color);
+	void draw_sfml_rect(TI, TI, sf::Color, sf::Color, int);
 	void draw_sprite(int, sf::Color, char);
 	void draw_obstacle(int);
 	void timer();

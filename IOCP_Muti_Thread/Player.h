@@ -1,11 +1,6 @@
 #pragma once
 #include "../Protocol.h"
 
-enum PERSONALITY {
-	PERSONALITY_NORMAL,
-	PERSONALITY_AGGRESSIVE,
-};
-
 class Player
 {
 public:
@@ -18,7 +13,6 @@ public:
 	int	max_hp{ 100 };
 	int	exp{};
 	int	level{1};
-	PERSONALITY personality;
 	
 	Player();
 	~Player();
