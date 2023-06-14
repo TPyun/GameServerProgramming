@@ -417,10 +417,10 @@ void show_all_sector_list()
 	int total = 0;
 	for (int i = 0; i < SECTOR_NUM; ++i) {
 		for (int j = 0; j < SECTOR_NUM; ++j) {
-			//printf("%2d ", sector_list[i][j].size());
+			printf("%2d ", sector_list[i][j].size());
 			total += sector_list[i][j].size();
 		}
-		//cout << endl;
+		cout << endl;
 	}
 	cout << "total: " << total << endl;
 }
@@ -1640,14 +1640,15 @@ void do_timer()
 		PostQueuedCompletionStatus(h_iocp, 1, event.object_id, &over->over);
 		
 		//cout << event.object_id << " position : " << objects[event.object_id].player.position.x << ", " << objects[event.object_id].player.position.y << " event : " << event.type << endl;
-		/*++num_excuted_npc;
-		if (chrono::high_resolution_clock::now() - start_t > chrono::milliseconds(NPC_MOVE_TIME)) {
-			cout << num_excuted_npc << "개의 NPC가 움직임\n";
-			num_excuted_npc = 0;
-			start_t = chrono::high_resolution_clock::now();
-		}*/
+		//++num_excuted_npc;
+		//if (chrono::high_resolution_clock::now() - start_t > chrono::milliseconds(NPC_MOVE_TIME)) {
+		//	/*cout << num_excuted_npc << "개의 NPC가 움직임\n";
+		//	num_excuted_npc = 0;*/
+		//	show_all_sector_list();
+
+		//	start_t = chrono::high_resolution_clock::now();
+		//}
 		
-		//show_all_sector_list();
 	}
 }
 
