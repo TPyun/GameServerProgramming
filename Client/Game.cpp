@@ -435,18 +435,14 @@ void Game::draw_game()
 				draw_obstacle(player.first);
 				continue;
 			}
-			else if (player.first >= AGGR_NPC_START) {	//NPC
+			else if (player.first >= AGGR_NPC_START)	//NPC
 				player_color = sf::Color(255, 150, 150, 200);
-			}
-			else if(player.first >= NORMAL_NPC_START){	//NPC
+			else if(player.first >= NORMAL_NPC_START)	//NPC
 				player_color = sf::Color(200,200,200,200);
-			}
-			else if(player.first == my_id){		//본인
+			else if(player.first == my_id)				//본인
 				player_color = sf::Color::White;
-			}
-			else {								//다른 플레이어
+			else										//다른 플레이어
 				player_color = sf::Color(150, 255, 150, 200);
-			}
 			draw_player_sprite(player.first, player_color, 3);
 			TI related_pos = get_relative_location(player.second.curr_position);
 			string name(player.second.name);
@@ -464,37 +460,6 @@ void Game::draw_game()
 			}
 		}
 		draw_sfml_rect({ WIDTH / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2), HEIGHT / 2 - int(BLOCK_SIZE * SECTOR_SIZE / 2) }, { BLOCK_SIZE * SECTOR_SIZE, BLOCK_SIZE * SECTOR_SIZE }, sf::Color::Blue, sf::Color::Transparent, 3);
-	}
-
-
-	if (stat_changed_time > 0) {
-		if (level_change != 0) {
-			string text = "Level UP " + to_string(level_change);
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
-		}
-		else if (exp_change > 0) {
-			string text = "EXP UP " + to_string(exp_change);
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
-		}
-		else if (hp_change < 0) {
-			string text = "HP " + to_string(hp_change);
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::Red, 22);
-		}
-		else if (hp_change > 0) {
-			string text = "HP " + to_string(hp_change);
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2  - 130 }, text, sf::Color::Green, 22);
-		}
-	}
-
-	if (attack_success_time > 0) {
-		if (ATTACK_FORWARD == attack_success_type) {
-			string text = "ATTACK 50";
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
-		}
-		else if (ATTACK_WIDE) {
-			string text = "ATTACK 20";
-			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
-		}
 	}
 	
 	draw_stat();
@@ -544,6 +509,36 @@ void Game::draw_stat()
 	draw_sfml_rect({ 50, 25 }, { exp_gauge, 15 }, sf::Color::Transparent, sf::Color::Green, 3);
 	
 	draw_sfml_rect({ 50, 10 }, { 200, 30 }, sf::Color::White, sf::Color::Transparent, 3);
+
+	if (stat_changed_time > 0) {
+		if (level_change != 0) {
+			string text = "Level UP " + to_string(level_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
+		}
+		else if (exp_change > 0) {
+			string text = "EXP UP " + to_string(exp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::White, 22);
+		}
+		else if (hp_change < 0) {
+			string text = "HP " + to_string(hp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::Red, 22);
+		}
+		else if (hp_change > 0) {
+			string text = "HP " + to_string(hp_change);
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6  , HEIGHT / 2 - 130 }, text, sf::Color::Green, 22);
+		}
+	}
+
+	if (attack_success_time > 0) {
+		if (ATTACK_FORWARD == attack_success_type) {
+			string text = "ATTACK 50";
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
+		}
+		else if (ATTACK_WIDE) {
+			string text = "ATTACK 20";
+			draw_sfml_text_s({ WIDTH / 2 - (int)text.length() * 6, HEIGHT / 2 }, text, sf::Color::White, 22);
+		}
+	}
 }
 
 void Game::draw_player_sprite(int id, sf::Color color, char size)
@@ -708,7 +703,18 @@ void Game::draw_information_mode()
 	for (auto& player : players) {
 		if (player.first == my_id)
 			continue;
-		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.arr_position.x) + ", " + std::to_string(player.second.arr_position.y), sf::Color::Red, text_size);
+		sf::Color color = sf::Color::White;
+		if (player.first >= OBSTACLE_START)
+			color = sf::Color::Black;
+		else if (player.first >= AGGR_NPC_START) 		//NPC
+			color = sf::Color::Red;
+		else if (player.first >= NORMAL_NPC_START)	//NPC
+			color = sf::Color::Red;
+		else if (player.first == my_id)				//본인
+			color = sf::Color::White;
+		else											//다른 플레이어
+			color = sf::Color::Green;
+		draw_sfml_text_s(TI{ 15, 10 + information_height++ * (text_size + 2) }, std::to_string(player.first) + ": " + std::to_string(player.second.arr_position.x) + ", " + std::to_string(player.second.arr_position.y), color, text_size);
 	}
 
 	//draw map
@@ -725,6 +731,7 @@ void Game::draw_information_mode()
 		if (player.first == my_id)
 			continue;
 		draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::Red, sf::Color::Red, 1);	//other position on mini map
+
 	}
 	TI player_pos_minimap{ players[my_id].curr_position.x * minimap_size.x / W_WIDTH + minimap_start_point.x,  players[my_id].curr_position.y * minimap_size.y / W_HEIGHT + minimap_start_point.y};
 	draw_sfml_rect(player_pos_minimap, TI{ 1, 1 }, sf::Color::White, sf::Color::White, 1);	//my position on mini map

@@ -10,7 +10,7 @@ constexpr int CHAT_SIZE = 100;
 constexpr int NAME_SIZE = 20;
 constexpr int BUFSIZE = 200;
 
-constexpr int MAX_USER = 1'5000;
+constexpr int MAX_USER = 5'0000;
 constexpr int MAX_NPC = 20'0000;
 constexpr int MAX_OBSTACLE = 50'0000;
 

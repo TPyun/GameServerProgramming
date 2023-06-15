@@ -527,7 +527,7 @@ bool attack_position(int attacker, int defender, ATTACK_TYPE attack_type)
 
 int get_new_client_id()
 {
-	for (int i = 0; i < objects.size(); i++) {
+	for (int i = 0; i < MAX_USER; i++) {
 		lock_guard<mutex> m(objects[i].state_mtx);
 		if (objects[i].state == ST_FREE) return i;
 	}
@@ -549,7 +549,7 @@ void wake_up_npc(int npc_id)
 	if (false == atomic_compare_exchange_strong(&objects[npc_id].is_active_npc, &old_state, true))
 		return;
 	//cout << npc_id << " 일어나라 NPC야 " << objects[npc_id].is_active_npc << endl;
-	reserve_timer(npc_id, EV_MOVE, 500);
+	reserve_timer(npc_id, EV_MOVE, NPC_MOVE_TIME);
 }
 
 void natural_healing_start(int id)
