@@ -10,9 +10,9 @@ constexpr int CHAT_SIZE = 100;
 constexpr int NAME_SIZE = 20;
 constexpr int BUFSIZE = 200;
 
-constexpr int MAX_USER = 5'0000;
-constexpr int MAX_NPC = 20'0000;
-constexpr int MAX_OBSTACLE = 50'0000;
+constexpr int MAX_USER = 51000;
+constexpr int MAX_NPC = 200000;
+constexpr int MAX_OBSTACLE = 500000;
 
 constexpr int USER_START = 0;
 constexpr int NPC_START = USER_START + MAX_USER;
@@ -38,7 +38,7 @@ constexpr int NPC_MOVE_TIME = 1000;
 constexpr int NATURAL_HEALING_TIME = 5000;
 constexpr int PLAYER_ATTACK_TIME = 1000;
 constexpr int NPC_ATTACK_TIME = 1000;
-constexpr int RESPAWN_TIME = 30000;	//30000
+constexpr int RESPAWN_TIME = 5000;	//30000
 constexpr int STAT_DISPLAY_TIME = 1000;
 
 constexpr int WIDE_ATTACK_DAMAGE = 20;
@@ -64,6 +64,8 @@ constexpr char SC_LOGIN_FAIL = 6;
 constexpr char SC_STAT_CHANGE = 7;
 constexpr char SC_ATTACK = 8;
 constexpr char SC_DIRECTION = 9;
+constexpr char SC_RESPAWN = 10;
+
 
 enum Key { KEY_UP_LEFT, KEY_UP, KEY_UP_RIGHT, KEY_LEFT, KEY_NONE, KEY_RIGHT, KEY_DOWN_LEFT, KEY_DOWN, KEY_DOWN_RIGHT };
 enum Direction { DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT };
@@ -249,5 +251,18 @@ struct SC_DIRECTION_PACKET {
 	int id;
 	char direction;
 };
+
+struct SC_RESPAWN_PACKET {
+	unsigned short size = sizeof(SC_RESPAWN_PACKET);
+	char type = SC_RESPAWN;
+
+	int		id;
+	int		hp;
+	int		max_hp;
+	int		exp;
+	int		level;
+	short	x, y;
+};
+
 
 #pragma pack (pop)

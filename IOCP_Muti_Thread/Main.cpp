@@ -155,6 +155,7 @@ public:
 	void send_out_packet(int);
 	void send_chat_packet(int c_id, const char* mess);
 	void send_stat_packet();
+	void send_respawn_packet();
 	
 	void dead();
 	void respawn();
@@ -188,6 +189,19 @@ void SESSION::send_login_ok_packet()
 void SESSION::send_login_fail_packet()
 {
 	SC_LOGIN_FAIL_PACKET packet;
+	do_send(&packet);
+}
+
+void SESSION::send_respawn_packet()
+{
+	SC_RESPAWN_PACKET packet;
+	packet.id = id;
+	packet.x = player.position.x;
+	packet.y = player.position.y;
+	packet.hp = player.hp;
+	packet.max_hp = player.max_hp;
+	packet.level = player.level;
+	packet.exp = player.exp;
 	do_send(&packet);
 }
 
@@ -620,7 +634,7 @@ void SESSION::respawn()
 	this_player->player.position = random_spawn_location();
 	add_to_sector_list();
 
-	this_player->send_login_info_packet();
+	this_player->send_respawn_packet();
 
 	unordered_set<int> list_of_sector;
 	this_player->get_from_sector_list(list_of_sector);

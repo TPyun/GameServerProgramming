@@ -306,6 +306,33 @@ void process_packet(char* packet)
 		//cout << "client_id: " << client_id << " out" << endl;
 	}
 	break;
+	case SC_RESPAWN:
+	{
+		game->connect_warning = false;
+		game->id_warning = false;
+		game->dead = false;
+		
+		SC_RESPAWN_PACKET* recv_packet = reinterpret_cast<SC_RESPAWN_PACKET*>(packet);
+		game->my_id = recv_packet->id;
+		game->players_mtx.lock();
+		game->players[game->my_id].curr_position.x = recv_packet->x;
+		game->players[game->my_id].curr_position.y = recv_packet->y;
+		game->players[game->my_id].arr_position.x = recv_packet->x;
+		game->players[game->my_id].arr_position.y = recv_packet->y;
+
+		game->players[game->my_id].id = game->my_id;
+		memcpy(game->players[game->my_id].name, game->Name, sizeof(game->Name));
+		game->players[game->my_id].hp = recv_packet->hp;
+		game->players[game->my_id].max_hp = recv_packet->max_hp;
+		game->players[game->my_id].level = recv_packet->level;
+		game->players[game->my_id].exp = recv_packet->exp;
+		game->players_mtx.unlock();
+
+		//cout << "My Name: " << (char*)game->players[game->my_id].name << " My ID: " << game->my_id << endl;
+
+		//game->initialize_ingame();
+	}
+	break;
 	case SC_STAT_CHANGE:
 	{
 		SC_STAT_CHANGE_PACKET* recv_packet = reinterpret_cast<SC_STAT_CHANGE_PACKET*>(packet);

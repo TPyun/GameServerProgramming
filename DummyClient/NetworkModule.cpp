@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 14000;
+const static int MAX_TEST = 50000;
 
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
@@ -183,6 +183,10 @@ void ProcessPacket(int ci, unsigned char packet[])
 	{
 		break;
 	}
+	case SC_RESPAWN:
+	{
+		break;
+	}
 	default: cout << "Unknown Packet Type : " << packet[1] << endl;
 		break;
 	}
@@ -280,6 +284,7 @@ void Adjust_Number_Of_Client()
 
 	if (active_clients >= MAX_TEST) return;
 	if (num_connections >= MAX_CLIENTS) return;
+	//cout << active_clients << " " << MAX_TEST << " " << num_connections << " " << MAX_CLIENTS << endl;
 
 	auto duration = high_resolution_clock::now() - last_connect_time;
 	if (ACCEPT_DELY * delay_multiplier > duration_cast<milliseconds>(duration).count()) return;
@@ -312,8 +317,8 @@ void Adjust_Number_Of_Client()
 	ZeroMemory(&ServerAddr, sizeof(SOCKADDR_IN));
 	ServerAddr.sin_family = AF_INET;
 	ServerAddr.sin_port = htons(PORT_NUM);
-	//ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
+	ServerAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//ServerAddr.sin_addr.s_addr = inet_addr("192.168.0.8");
 
 
 	int Result = WSAConnect(g_clients[num_connections].client_socket, (sockaddr*)&ServerAddr, sizeof(ServerAddr), NULL, NULL, NULL, NULL);
