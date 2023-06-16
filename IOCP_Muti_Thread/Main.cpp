@@ -1669,7 +1669,7 @@ void do_timer()
 void locate_obstacles()
 {
 	auto start_t = chrono::system_clock::now();
-	for (int obstacle_id = MAX_USER + MAX_NPC; obstacle_id < MAX_USER + MAX_NPC + MAX_OBSTACLE; ++obstacle_id) {
+	for (int obstacle_id = OBSTACLE_START; obstacle_id < MAX_USER + MAX_NPC + MAX_OBSTACLE; ++obstacle_id) {
 		objects[obstacle_id].id = obstacle_id;
 		//objects[obstacle_id].state = ST_INGAME;
 		objects[obstacle_id].player.position = random_spawn_location();
